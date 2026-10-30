@@ -908,12 +908,17 @@ function initImageControls() {
 
     const slider = document.getElementById("image-conf-slider");
     const numInput = document.getElementById("image-conf-num");
+    let imageConfDebounce = null;
 
     slider.addEventListener("input", (e) => {
         const val = parseFloat(e.target.value);
         state.imageThreshold = val;
         numInput.value = Math.round(val * 100);
         reFilterImageWorkers();
+        if (state.currentImageFile) {
+            clearTimeout(imageConfDebounce);
+            imageConfDebounce = setTimeout(() => inspectUploadedImage(state.currentImageFile), 350);
+        }
     });
 
     numInput.addEventListener("change", (e) => {
@@ -924,6 +929,10 @@ function initImageControls() {
         slider.value = (val / 100).toFixed(2);
         state.imageThreshold = val / 100;
         reFilterImageWorkers();
+        if (state.currentImageFile) {
+            clearTimeout(imageConfDebounce);
+            imageConfDebounce = setTimeout(() => inspectUploadedImage(state.currentImageFile), 350);
+        }
     });
 }
 
@@ -941,6 +950,7 @@ async function loadImageSample(filename) {
 }
 
 async function inspectUploadedImage(file) {
+    state.currentImageFile = file;
     showImageProgress(true);
 
     const formData = new FormData();
