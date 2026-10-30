@@ -560,7 +560,9 @@ function handleCamInferenceResult(camIndex, data) {
 
     camObj.detections = evaluated;
 
-    // Update tile footer
+    const isFocused = (state.activeCctvFocus === camIndex);
+
+    // Update tile footer & borders
     const workersFooter = document.getElementById(`footer-cam-${camIndex}-workers`);
     const statusFooter = document.getElementById(`footer-cam-${camIndex}-status`);
     const tile = document.getElementById(`cam-tile-${camIndex}`);
@@ -569,28 +571,28 @@ function handleCamInferenceResult(camIndex, data) {
     if (workersFooter) workersFooter.innerText = `Workers: ${evaluated.length}`;
 
     if (statusFooter) {
-        if (violCount > 0) {
+        if (isFocused && violCount > 0) {
             statusFooter.className = "status-tag-chip violation";
             statusFooter.innerText = `🚨 ${violCount} VIOLATION`;
             if (tile) tile.classList.add("has-violation");
         } else {
             statusFooter.className = "status-tag-chip compliant";
-            statusFooter.innerText = "COMPLIANT";
+            statusFooter.innerText = isFocused ? "COMPLIANT" : (camObj.streaming ? "ONLINE" : "STANDBY");
             if (tile) tile.classList.remove("has-violation");
         }
     }
 
-    // Draw live bounding boxes on tile canvas
-    drawCanvasBoxes(`canvas-cam-${camIndex}`, evaluated);
+    // Draw live bounding boxes on tile canvas ONLY if focused
+    drawCanvasBoxes(`canvas-cam-${camIndex}`, evaluated, isFocused);
 
     // Aggregate KPIs across all active CCTV feeds
     updateCctvKpis();
 
     // If this screen is currently focused on right sidebar:
-    if (state.activeCctvFocus === camIndex) {
+    if (isFocused) {
         renderCctvVerdictsList(evaluated);
 
-        // Auto-log live breach if a violation is detected while screen is focused (debounced 12s)
+        // Auto-log live breach every 20 seconds while screen is focused
         if (violCount > 0) {
             checkCctvAutoLogBreach(camIndex);
         }
@@ -801,13 +803,68 @@ function toggleQuadFocus(tileNum) {
     if (tileNum === null || state.activeCctvFocus === tileNum) {
         state.activeCctvFocus = null;
         quad.classList.remove("single-focus");
-        tiles.forEach(t => t.classList.remove("active-focus"));
+        tiles.forEach(t => {
+            t.classList.remove("active-focus");
+            t.classList.remove("has-violation");
+        });
+        // Clear all canvases so raw webcam is shown with no violation boxes
+        [1, 2, 3, 4].forEach(idx => {
+            const canvas = document.getElementById(`canvas-cam-${idx}`);
+            if (canvas) {
+                const ctx = canvas.getContext("2d");
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+            const statusFooter = document.getElementById(`footer-cam-${idx}-status`);
+            if (statusFooter) {
+                const cam = state.activeCameras[idx];
+                statusFooter.className = "status-tag-chip compliant";
+                statusFooter.innerText = (cam && cam.streaming) ? "ONLINE" : "STANDBY";
+            }
+        });
     } else {
         state.activeCctvFocus = tileNum;
         quad.classList.add("single-focus");
-        tiles.forEach(t => t.classList.remove("active-focus"));
+        tiles.forEach(t => {
+            t.classList.remove("active-focus");
+            t.classList.remove("has-violation");
+        });
         const target = document.getElementById(`cam-tile-${tileNum}`);
         if (target) target.classList.add("active-focus");
+
+        // Clear non-focused canvases
+        [1, 2, 3, 4].forEach(idx => {
+            if (idx !== tileNum) {
+                const canvas = document.getElementById(`canvas-cam-${idx}`);
+                if (canvas) {
+                    const ctx = canvas.getContext("2d");
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+                const statusFooter = document.getElementById(`footer-cam-${idx}-status`);
+                if (statusFooter) {
+                    const cam = state.activeCameras[idx];
+                    statusFooter.className = "status-tag-chip compliant";
+                    statusFooter.innerText = (cam && cam.streaming) ? "ONLINE" : "STANDBY";
+                }
+            }
+        });
+
+        // Immediately draw overlays on focused screen
+        const camObj = state.activeCameras[tileNum];
+        if (camObj) {
+            const violCount = (camObj.detections || []).filter(w => !w.is_compliant).length;
+            const statusFooter = document.getElementById(`footer-cam-${tileNum}-status`);
+            if (statusFooter) {
+                if (violCount > 0) {
+                    statusFooter.className = "status-tag-chip violation";
+                    statusFooter.innerText = `🚨 ${violCount} VIOLATION`;
+                    if (target) target.classList.add("has-violation");
+                } else {
+                    statusFooter.className = "status-tag-chip compliant";
+                    statusFooter.innerText = "COMPLIANT";
+                }
+            }
+            drawCanvasBoxes(`canvas-cam-${tileNum}`, camObj.detections || [], true);
+        }
 
         // AUTO-SAVE LIVE BREACH TO AUDIT ON DOUBLE-CLICK!
         autoLogCctvBreachOnFocus(tileNum);
@@ -956,9 +1013,10 @@ function reEvaluateCameraDetections(camIndex) {
         }
     }
 
-    drawCanvasBoxes(`canvas-cam-${camIndex}`, evaluated);
+    const isFocused = (state.activeCctvFocus === camIndex);
+    drawCanvasBoxes(`canvas-cam-${camIndex}`, evaluated, isFocused);
     updateCctvKpis();
-    if (state.activeCctvFocus === camIndex) {
+    if (isFocused) {
         renderCctvVerdictsList(evaluated);
     }
 }
@@ -968,7 +1026,8 @@ const cctvAutoLogTimers = {};
 function checkCctvAutoLogBreach(camIndex) {
     if (state.activeCctvFocus !== camIndex) return;
     const now = Date.now();
-    if (cctvAutoLogTimers[camIndex] && (now - cctvAutoLogTimers[camIndex] < 12000)) {
+    // Auto audit save every 20 seconds
+    if (cctvAutoLogTimers[camIndex] && (now - cctvAutoLogTimers[camIndex] < 20000)) {
         return;
     }
     cctvAutoLogTimers[camIndex] = now;
@@ -983,6 +1042,7 @@ function autoLogCctvBreachOnFocus(camIndex) {
     const violations = detections.filter(w => !w.is_compliant);
 
     if (detections.length > 0) {
+        cctvAutoLogTimers[camIndex] = Date.now();
         const sourceName = camObj.roomName ? `CAM-0${camIndex} (${camObj.roomName})` : `CAM-0${camIndex}`;
         const snapshotImage = captureCameraSnapshot(camIndex);
         const summary = violations.length > 0
@@ -1053,11 +1113,14 @@ function syncCanvasDimensions(canvasId, parentEl) {
     canvas.height = parentEl.clientHeight || 180;
 }
 
-function drawCanvasBoxes(canvasId, workers) {
+function drawCanvasBoxes(canvasId, workers, isFocused = true) {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // If screen is not focused, do not draw violation bounding boxes (show clean webcam feed)
+    if (!isFocused) return;
 
     if (!workers || workers.length === 0) return;
 
@@ -2017,12 +2080,43 @@ function captureCameraSnapshot(camIndex) {
         off.height = Math.round(video.videoHeight * scale);
         const ctx = off.getContext("2d");
 
-        // Composite live video frame and AI bounding box overlay
+        // 1. Draw live video frame
         ctx.drawImage(video, 0, 0, off.width, off.height);
-        if (canvas) {
+
+        // 2. Draw violation overlays onto proof snapshot
+        const camObj = state.activeCameras[camIndex];
+        const detections = camObj ? (camObj.detections || []) : [];
+        if (state.activeCctvFocus === camIndex && canvas) {
             ctx.drawImage(canvas, 0, 0, off.width, off.height);
+        } else if (detections.length > 0) {
+            const scaleX = off.width / 640.0;
+            const scaleY = off.height / 360.0;
+            detections.forEach(w => {
+                if (!w.box) return;
+                const [x1, y1, x2, y2] = w.box;
+                const sx = x1 * scaleX;
+                const sy = y1 * scaleY;
+                const sw = (x2 - x1) * scaleX;
+                const sh = (y2 - y1) * scaleY;
+                const isViolation = !w.is_compliant;
+
+                ctx.save();
+                ctx.strokeStyle = isViolation ? "#A31C1B" : "#A3A3A3";
+                ctx.lineWidth = 3;
+                ctx.strokeRect(sx, sy, sw, sh);
+
+                const missingText = (isViolation && w.missing_chips && w.missing_chips.length) ? ` (${w.missing_chips.join(', ')})` : '';
+                const labelText = `Worker #${w.worker_id} - ${isViolation ? 'VIOLATION' : 'COMPLIANT'}${missingText}`;
+                ctx.font = "bold 13px Inter, sans-serif";
+                const metrics = ctx.measureText(labelText);
+                ctx.fillStyle = isViolation ? "#A31C1B" : "#262626";
+                ctx.fillRect(sx, Math.max(sy - 22, 0), metrics.width + 12, 22);
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillText(labelText, sx + 6, Math.max(sy - 6, 16));
+                ctx.restore();
+            });
         }
-        return off.toDataURL("image/jpeg", 0.80);
+        return off.toDataURL("image/jpeg", 0.85);
     } catch (e) {
         console.warn("Could not capture camera snapshot:", e);
         return null;
