@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>PPE Compliance AI Platform - Enterprise Safety Console</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=12.0">
     <!-- Lucide Line Icons (16-20px) -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
@@ -17,7 +20,7 @@
             <div class="brand-logo-mark">P</div>
             <div class="brand-title-wrap">
                 <span class="brand-name">PPE Compliance AI Platform</span>
-                <span class="model-tag">RF-DETR-S (DINOv2) - 10-Epoch EMA</span>
+                <span class="model-tag">YOLOv8s-Industrial-5Class (Fine-Tuned)</span>
             </div>
         </div>
 
@@ -277,6 +280,59 @@
                         </button>
                     </div>
                 </div>
+
+                <!-- Multi-Camera Spatial Floor Plan & Homography Tracking (MCMT) -->
+                <div class="mcmt-panel" id="mcmt-floorplan-panel" style="background:#0c0c0c; border-top:1px solid var(--border-color); padding:10px 16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <i data-lucide="map-pin" style="width:15px; height:15px; color:#f97316;"></i>
+                            <span style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-primary);">
+                                MCMT Floor Plan Calibration & Multi-Camera Tracking
+                            </span>
+                            <span class="status-tag-chip" style="font-size:10px; padding:1px 6px; background:rgba(249,115,22,0.15); color:#fb923c; border:1px solid #f97316;">
+                                Homography Calibrated
+                            </span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; font-size:11px; color:var(--text-secondary);">
+                            <span id="mcmt-stat-active-globals"><strong style="color:#fff;">0</strong> Global Workers</span>
+                            <span>•</span>
+                            <span id="mcmt-stat-overlaps"><strong style="color:#f97316;">0</strong> Overlap Matched (Orange)</span>
+                            <span>•</span>
+                            <span id="mcmt-stat-transits"><strong style="color:#38bdf8;">0</strong> Plausible Transits</span>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 310px; gap:12px; align-items:center;">
+                        <!-- Top-Down 2D Ground Plane Canvas -->
+                        <div style="position:relative; width:100%; height:125px; background:#050505; border:1px solid #262626; border-radius:4px; overflow:hidden;">
+                            <canvas id="mcmt-floorplan-canvas" style="width:100%; height:100%; display:block;"></canvas>
+                            <div style="position:absolute; bottom:4px; left:8px; font-size:10px; color:#666; pointer-events:none;">
+                                Site Ground Plane (100m × 100m) • Overlap Zone (CAM 1 & 2)
+                            </div>
+                        </div>
+
+                        <!-- Legend & Overlap Calibration Diagnostics -->
+                        <div style="display:flex; flex-direction:column; gap:5px; font-size:11px; color:var(--text-secondary); background:#141414; padding:8px 12px; border-radius:4px; border:1px solid #262626;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <span>Overlap Pair:</span>
+                                <span style="color:#22c55e; font-weight:600;">CAM-01 ⟷ CAM-02 (Scaffold)</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span>Ground Distance Threshold:</span>
+                                <span style="color:#fff; font-weight:600;">≤ 3.0 meters</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span>Non-Overlap Transit Gate:</span>
+                                <span style="color:#38bdf8;">Δt ∈ [8s, 35s] (Uncertain)</span>
+                            </div>
+                            <div style="display:flex; gap:10px; margin-top:2px;">
+                                <span style="display:inline-flex; align-items:center; gap:4px; color:#A31C1B;"><span style="width:7px; height:7px; border-radius:50%; background:#A31C1B;"></span>Primary Red</span>
+                                <span style="display:inline-flex; align-items:center; gap:4px; color:#f97316;"><span style="width:7px; height:7px; border-radius:50%; background:#f97316;"></span>Overlap Orange</span>
+                                <span style="display:inline-flex; align-items:center; gap:4px; color:#22c55e;"><span style="width:7px; height:7px; border-radius:50%; background:#22c55e;"></span>Compliant</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </section>
         </div>
 
@@ -306,7 +362,7 @@
                             <span class="header-action-link" onclick="setFocusedCameraRules(false)">Clear</span>
                         </div>
                     </div>
-                    <div class="violation-types-grid">
+                    <div class="violation-types-grid" style="grid-template-columns: 1fr 1fr;">
                         <button class="violation-toggle-btn selected" data-cctvrule="helmet" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="hard-hat" style="width:16px; height:16px;"></i>
                             No Helmet
@@ -314,26 +370,6 @@
                         <button class="violation-toggle-btn selected" data-cctvrule="vest" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
                             No Safety Vest
-                        </button>
-                        <button class="violation-toggle-btn selected" data-cctvrule="helmet_arm" onclick="toggleFocusedCameraRule(this)">
-                            <i data-lucide="shield-alert" style="width:16px; height:16px;"></i>
-                            Helmet Under Arm
-                        </button>
-                        <button class="violation-toggle-btn" data-cctvrule="gloves" onclick="toggleFocusedCameraRule(this)">
-                            <i data-lucide="hand" style="width:16px; height:16px;"></i>
-                            No Gloves
-                        </button>
-                        <button class="violation-toggle-btn" data-cctvrule="boots" onclick="toggleFocusedCameraRule(this)">
-                            <i data-lucide="footprints" style="width:16px; height:16px;"></i>
-                            No Safety Boots
-                        </button>
-                        <button class="violation-toggle-btn" data-cctvrule="goggles" onclick="toggleFocusedCameraRule(this)">
-                            <i data-lucide="glasses" style="width:16px; height:16px;"></i>
-                            No Eye Protection
-                        </button>
-                        <button class="violation-toggle-btn" data-cctvrule="other" onclick="toggleFocusedCameraRule(this)">
-                            <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
-                            Other / Loose PPE
                         </button>
                     </div>
                 </div>
@@ -506,7 +542,7 @@
                             <span class="header-action-link" onclick="setImageRules(false)">Clear</span>
                         </div>
                     </div>
-                    <div class="violation-types-grid">
+                    <div class="violation-types-grid" style="grid-template-columns: 1fr 1fr;">
                         <button class="violation-toggle-btn selected" data-imrule="helmet" onclick="toggleImageRule(this)">
                             <i data-lucide="hard-hat" style="width:16px; height:16px;"></i>
                             No Helmet
@@ -514,26 +550,6 @@
                         <button class="violation-toggle-btn selected" data-imrule="vest" onclick="toggleImageRule(this)">
                             <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
                             No Safety Vest
-                        </button>
-                        <button class="violation-toggle-btn selected" data-imrule="helmet_arm" onclick="toggleImageRule(this)">
-                            <i data-lucide="shield-alert" style="width:16px; height:16px;"></i>
-                            Helmet Under Arm
-                        </button>
-                        <button class="violation-toggle-btn" data-imrule="gloves" onclick="toggleImageRule(this)">
-                            <i data-lucide="hand" style="width:16px; height:16px;"></i>
-                            No Gloves
-                        </button>
-                        <button class="violation-toggle-btn" data-imrule="boots" onclick="toggleImageRule(this)">
-                            <i data-lucide="footprints" style="width:16px; height:16px;"></i>
-                            No Safety Boots
-                        </button>
-                        <button class="violation-toggle-btn" data-imrule="goggles" onclick="toggleImageRule(this)">
-                            <i data-lucide="glasses" style="width:16px; height:16px;"></i>
-                            No Eye Protection
-                        </button>
-                        <button class="violation-toggle-btn" data-imrule="other" onclick="toggleImageRule(this)">
-                            <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
-                            Other / Loose PPE
                         </button>
                     </div>
                 </div>
@@ -666,7 +682,7 @@
                             <span class="header-action-link" onclick="setVideoRules(false)">Clear</span>
                         </div>
                     </div>
-                    <div class="violation-types-grid">
+                    <div class="violation-types-grid" style="grid-template-columns: 1fr 1fr;">
                         <button class="violation-toggle-btn selected" data-vidrule="helmet" onclick="toggleVideoRule(this)">
                             <i data-lucide="hard-hat" style="width:16px; height:16px;"></i>
                             No Helmet
@@ -674,26 +690,6 @@
                         <button class="violation-toggle-btn selected" data-vidrule="vest" onclick="toggleVideoRule(this)">
                             <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
                             No Safety Vest
-                        </button>
-                        <button class="violation-toggle-btn selected" data-vidrule="helmet_arm" onclick="toggleVideoRule(this)">
-                            <i data-lucide="shield-alert" style="width:16px; height:16px;"></i>
-                            Helmet Under Arm
-                        </button>
-                        <button class="violation-toggle-btn" data-vidrule="gloves" onclick="toggleVideoRule(this)">
-                            <i data-lucide="hand" style="width:16px; height:16px;"></i>
-                            No Gloves
-                        </button>
-                        <button class="violation-toggle-btn" data-vidrule="boots" onclick="toggleVideoRule(this)">
-                            <i data-lucide="footprints" style="width:16px; height:16px;"></i>
-                            No Safety Boots
-                        </button>
-                        <button class="violation-toggle-btn" data-vidrule="goggles" onclick="toggleVideoRule(this)">
-                            <i data-lucide="glasses" style="width:16px; height:16px;"></i>
-                            No Eye Protection
-                        </button>
-                        <button class="violation-toggle-btn" data-vidrule="other" onclick="toggleVideoRule(this)">
-                            <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
-                            Other / Loose PPE
                         </button>
                     </div>
                 </div>
@@ -826,7 +822,7 @@
                         <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Mandatory PPE Rules For This Room</label>
                         <span style="font-size:11px; color:var(--text-disabled);">Checks violations for this room only</span>
                     </div>
-                    <div class="modal-rules-grid" id="modal-cam-rules">
+                    <div class="modal-rules-grid" id="modal-cam-rules" style="grid-template-columns: 1fr 1fr;">
                         <button type="button" class="violation-toggle-btn selected" data-modal-rule="helmet" onclick="toggleModalCamRule(this)">
                             <i data-lucide="hard-hat" style="width:14px; height:14px;"></i>
                             No Helmet
@@ -834,22 +830,6 @@
                         <button type="button" class="violation-toggle-btn selected" data-modal-rule="vest" onclick="toggleModalCamRule(this)">
                             <i data-lucide="shield-check" style="width:14px; height:14px;"></i>
                             No Safety Vest
-                        </button>
-                        <button type="button" class="violation-toggle-btn selected" data-modal-rule="helmet_arm" onclick="toggleModalCamRule(this)">
-                            <i data-lucide="shield-alert" style="width:14px; height:14px;"></i>
-                            Helmet Under Arm
-                        </button>
-                        <button type="button" class="violation-toggle-btn" data-modal-rule="gloves" onclick="toggleModalCamRule(this)">
-                            <i data-lucide="hand" style="width:14px; height:14px;"></i>
-                            No Gloves
-                        </button>
-                        <button type="button" class="violation-toggle-btn" data-modal-rule="boots" onclick="toggleModalCamRule(this)">
-                            <i data-lucide="footprints" style="width:14px; height:14px;"></i>
-                            No Safety Boots
-                        </button>
-                        <button type="button" class="violation-toggle-btn" data-modal-rule="goggles" onclick="toggleModalCamRule(this)">
-                            <i data-lucide="glasses" style="width:14px; height:14px;"></i>
-                            No Eye Protection
                         </button>
                     </div>
                 </div>
@@ -885,9 +865,13 @@
                         <div id="lightbox-timestamp-text" style="color:var(--text-secondary); font-size:11px; margin-top:2px;">Timestamp</div>
                     </div>
                     <div style="display:flex; gap:8px;">
+                        <button class="btn-outlined" onclick="openProofPage(currentLightboxLogId)" title="Open Full Audit Page in New Tab">
+                            <i data-lucide="external-link" style="width:14px; height:14px;"></i>
+                            Full Page
+                        </button>
                         <button class="btn-outlined" id="lightbox-download-btn" onclick="downloadProofImage()">
                             <i data-lucide="download" style="width:14px; height:14px;"></i>
-                            Download Proof Image
+                            Download Proof
                         </button>
                         <button class="btn-primary" onclick="closeProofLightbox()">Done</button>
                     </div>
@@ -902,7 +886,7 @@
     </main>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.4"></script>
+    <script src="app.js?v=12.0"></script>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             if (window.lucide) window.lucide.createIcons();

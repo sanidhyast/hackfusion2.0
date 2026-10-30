@@ -60,28 +60,43 @@ app.mount("/media", StaticFiles(directory=str(PROCESSED_DIR)), name="media")
 if (FRONTEND_DIR / "samples").exists():
     app.mount("/samples", StaticFiles(directory=str(FRONTEND_DIR / "samples")), name="samples")
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+}
+
 @app.get("/", response_class=FileResponse)
 def serve_dashboard():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(FRONTEND_DIR / "index.html", headers=NO_CACHE_HEADERS)
 
 @app.get("/style.css")
 def serve_css():
-    return FileResponse(FRONTEND_DIR / "style.css", media_type="text/css")
+    return FileResponse(FRONTEND_DIR / "style.css", media_type="text/css", headers=NO_CACHE_HEADERS)
 
 @app.get("/app.js")
 def serve_js():
-    return FileResponse(FRONTEND_DIR / "app.js", media_type="application/javascript")
+    return FileResponse(FRONTEND_DIR / "app.js", media_type="application/javascript", headers=NO_CACHE_HEADERS)
 
 @app.get("/proof.html", response_class=FileResponse)
 def serve_proof_page():
-    return FileResponse(FRONTEND_DIR / "proof.html")
+    return FileResponse(FRONTEND_DIR / "proof.html", headers=NO_CACHE_HEADERS)
 
 # Global Pipeline State
 PIPELINE: Optional[CompliancePipeline] = None
-CHECKPOINT_PATH = WORKDIR / "rfdetr_10ep_runs" / "checkpoint_best_ema.pth"
+CHECKPOINT_PATH = WORKDIR / "yolov8_5class_runs" / "yolov8s_5class_finetuned" / "weights" / "best.pt"
 if not CHECKPOINT_PATH.exists():
-    # Fallback to 5-epoch run if 10-epoch path differs
-    CHECKPOINT_PATH = WORKDIR / "rfdetr_runs" / "checkpoint_best_ema.pth"
+    # Fallback to last or pretrained weights if best.pt is still being written
+    fallback_candidates = [
+        WORKDIR / "yolov8_5class_runs" / "yolov8s_5class_finetuned" / "weights" / "last.pt",
+        WORKDIR / "yolov8m_ppe.pt",
+        WORKDIR / "sh17_yolov8m.pt",
+        Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\yolov8s.pt")
+    ]
+    for cand in fallback_candidates:
+        if cand.exists():
+            CHECKPOINT_PATH = cand
+            break
 
 # System Stats
 STATS = {
@@ -96,19 +111,18 @@ STATS = {
 def load_model_on_startup():
     global PIPELINE
     print("=" * 60)
-    print("Initializing PPE Compliance Detection Backend...")
-    print(f"Loading Model Checkpoint: {CHECKPOINT_PATH}")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Initializing YOLOv8-Only PPE Compliance Detection Backend...")
+    print(f"Loading YOLOv8 Checkpoint: {CHECKPOINT_PATH}")
+    device = "0" if torch.cuda.is_available() else "cpu"
     print(f"Hardware Device: {device}")
     
     PIPELINE = CompliancePipeline(
-        model_type="rfdetr",
         model_path=str(CHECKPOINT_PATH),
         required_ppe=["helmet", "vest"],
         conf_threshold=0.35,
         device=device
     )
-    print("Backend Model Loaded Successfully & Ready for Traffic!")
+    print("YOLOv8-Only Backend Model Loaded Successfully & Ready for Traffic!")
     print("=" * 60)
 
 @app.get("/health")
@@ -125,7 +139,9 @@ def health_check():
     return {
         "status": "online",
         "model_loaded": PIPELINE is not None,
-        "model_type": "RF-DETR-S (10-Epoch EMA)",
+        "model_type": "Ultralytics YOLOv8s (Fine-Tuned 5-Class Industrial)",
+        "architecture": "YOLOv8-Only (No DETR/RF-DETR)",
+        "classes": ["Person", "Helmet", "No Helmet", "Vest", "No Vest"],
         "checkpoint": str(CHECKPOINT_PATH),
         "gpu": gpu_info,
         "uptime_seconds": round(time.time() - STATS["start_time"], 1)
@@ -210,6 +226,150 @@ async def detect_image(
         "processed_image_url": f"/media/{filename}"
     }
 
+class SaveSnapshotRequest(BaseModel):
+    incident_id: str
+    camera: str
+    snapshot_base64: str
+    violations: int
+    summary: str
+    timestamp: Optional[str] = None
+    totalWorkers: Optional[int] = None
+    compliant: Optional[int] = None
+    activeRules: Optional[Dict[str, Any]] = None
+    workers: Optional[List[Dict[str, Any]]] = None
+    multi_cam_snapshots: Optional[Dict[str, Any]] = None
+
+SNAPSHOTS_DIR = PROCESSED_DIR / "snapshots"
+SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+
+@app.post("/api/audit/save_snapshot")
+async def save_audit_snapshot(req: SaveSnapshotRequest):
+    """Saves live violation screenshot/snapshot to disk with full metadata and multi-cam snapshots."""
+    try:
+        data = req.snapshot_base64
+        if "," in data:
+            data = data.split(",", 1)[1]
+        img_bytes = base64.b64decode(data)
+        out_file = SNAPSHOTS_DIR / f"{req.incident_id}.jpg"
+        with open(out_file, "wb") as f:
+            f.write(img_bytes)
+
+        # Save multi-camera angle snapshots if provided
+        multi_cam_urls = {}
+        if req.multi_cam_snapshots:
+            for cam_key, cam_data in req.multi_cam_snapshots.items():
+                try:
+                    c_b64 = cam_data.get("image", "")
+                    if "," in c_b64:
+                        c_b64 = c_b64.split(",", 1)[1]
+                    c_bytes = base64.b64decode(c_b64)
+                    c_file = SNAPSHOTS_DIR / f"{req.incident_id}_{cam_key}.jpg"
+                    with open(c_file, "wb") as cf:
+                        cf.write(c_bytes)
+                    multi_cam_urls[cam_key] = {
+                        "label": cam_data.get("label", cam_key),
+                        "roomName": cam_data.get("roomName", ""),
+                        "url": f"/media/snapshots/{req.incident_id}_{cam_key}.jpg"
+                    }
+                except Exception as ex:
+                    print(f"Error saving multi-cam snapshot {cam_key}:", ex)
+
+        # Save metadata JSON alongside image
+        metadata = {
+            "id": req.incident_id,
+            "timestamp": req.timestamp or time.strftime("%Y-%m-%d %H:%M:%S"),
+            "camera": req.camera,
+            "violations": req.violations,
+            "totalWorkers": req.totalWorkers if req.totalWorkers is not None else max(1, req.violations),
+            "compliant": req.compliant if req.compliant is not None else 0,
+            "verdict": req.summary,
+            "activeRules": req.activeRules or {"helmet": True, "vest": True},
+            "workers": req.workers or [],
+            "snapshotImage": f"/media/snapshots/{req.incident_id}.jpg",
+            "multi_cam_views": multi_cam_urls
+        }
+        json_file = SNAPSHOTS_DIR / f"{req.incident_id}.json"
+        with open(json_file, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2)
+
+        return {
+            "success": True,
+            "incident_id": req.incident_id,
+            "filename": f"{req.incident_id}.jpg",
+            "file_path": str(out_file),
+            "media_url": f"/media/snapshots/{req.incident_id}.jpg",
+            "incident": metadata
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+@app.get("/api/audit/incidents")
+async def list_audit_incidents():
+    """Returns all saved incident records sorted newest first."""
+    files = sorted(SNAPSHOTS_DIR.glob("*.json"), key=os.path.getmtime, reverse=True)
+    results = []
+    for f in files:
+        try:
+            with open(f, "r", encoding="utf-8") as fp:
+                results.append(json.load(fp))
+        except Exception:
+            pass
+    return {"success": True, "incidents": results}
+
+@app.get("/api/audit/latest")
+async def get_latest_audit_incident():
+    """Returns the most recent audit incident or snapshot."""
+    json_files = sorted(SNAPSHOTS_DIR.glob("*.json"), key=os.path.getmtime, reverse=True)
+    if json_files:
+        try:
+            with open(json_files[0], "r", encoding="utf-8") as fp:
+                return {"success": True, "incident": json.load(fp)}
+        except Exception:
+            pass
+
+    jpg_files = sorted(SNAPSHOTS_DIR.glob("*.jpg"), key=os.path.getmtime, reverse=True)
+    if jpg_files:
+        latest_id = jpg_files[0].stem
+        return {
+            "success": True,
+            "incident": {
+                "id": latest_id,
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(jpg_files[0]))),
+                "camera": "Live CCTV Stream",
+                "violations": 1,
+                "totalWorkers": 1,
+                "compliant": 0,
+                "verdict": "Live Violation Proof Snapshot",
+                "snapshotImage": f"/media/snapshots/{latest_id}.jpg"
+            }
+        }
+    return {"success": False, "error": "No proof incidents found"}
+
+@app.get("/api/audit/incident/{incident_id}")
+async def get_audit_incident(incident_id: str):
+    """Fetches a specific incident by ID with image URL."""
+    json_file = SNAPSHOTS_DIR / f"{incident_id}.json"
+    if json_file.exists():
+        with open(json_file, "r", encoding="utf-8") as fp:
+            return {"success": True, "incident": json.load(fp)}
+
+    jpg_file = SNAPSHOTS_DIR / f"{incident_id}.jpg"
+    if jpg_file.exists():
+        return {
+            "success": True,
+            "incident": {
+                "id": incident_id,
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(jpg_file))),
+                "camera": "Live CCTV Stream",
+                "violations": 1,
+                "totalWorkers": 1,
+                "compliant": 0,
+                "verdict": "Live Violation Proof Snapshot",
+                "snapshotImage": f"/media/snapshots/{incident_id}.jpg"
+            }
+        }
+    return {"success": False, "error": f"Incident {incident_id} not found"}
+
 @app.post("/api/detect/video")
 async def detect_video(
     file: UploadFile = File(...),
@@ -253,10 +413,6 @@ async def detect_video(
                     missing.append("No helmet")
                 if not detected.get("vest"):
                     missing.append("No safety vest")
-                if "helmet_under_arm" in w.get("negative_flags", []) or "helmet_under_arm" in w.get("missing_ppe", []):
-                    missing.append("Helmet Under Arm")
-                if not detected.get("gloves") and "gloves" in detected:
-                    missing.append("No gloves")
 
                 is_comp = len(missing) == 0
                 incident_list.append({

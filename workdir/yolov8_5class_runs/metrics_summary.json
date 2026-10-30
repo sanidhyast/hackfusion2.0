@@ -1,0 +1,47 @@
+{
+  "model": "YOLOv8s-Industrial-5Class",
+  "checkpoint": "C:\\Users\\stpla\\OneDrive\\Desktop\\HF2\\workdir\\yolov8_5class_runs\\yolov8s_5class_finetuned\\weights\\best.pt",
+  "overall": {
+    "precision": 0.8588376894263382,
+    "recall": 0.6727921178559234,
+    "map50": 0.7658550036615223,
+    "map50_95": 0.4727102226931212
+  },
+  "classes": {
+    "Person": {
+      "class_id": 0,
+      "precision": 0.889,
+      "recall": 0.7388,
+      "map50": 0.8257,
+      "map50_95": 0.5697
+    },
+    "Helmet": {
+      "class_id": 1,
+      "precision": 0.8609,
+      "recall": 0.648,
+      "map50": 0.7431,
+      "map50_95": 0.4179
+    },
+    "No Helmet": {
+      "class_id": 2,
+      "precision": 0.8212,
+      "recall": 0.6135,
+      "map50": 0.7078,
+      "map50_95": 0.4087
+    },
+    "Vest": {
+      "class_id": 3,
+      "precision": 0.8757,
+      "recall": 0.6909,
+      "map50": 0.7812,
+      "map50_95": 0.475
+    },
+    "No Vest": {
+      "class_id": 4,
+      "precision": 0.8474,
+      "recall": 0.6727,
+      "map50": 0.7715,
+      "map50_95": 0.4923
+    }
+  }
+}

@@ -410,29 +410,64 @@
             { key: "loose", label: "Other / Loose PPE", icon: "alert-triangle" }
         ];
 
-        document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", async () => {
             const params = new URLSearchParams(window.location.search);
-            const incidentId = params.get("id");
-            currentIncidentId = incidentId;
+            let incidentId = params.get("id");
 
-            // Load audit logs from localStorage
-            let auditLogs = [];
+            let incident = null;
+
+            // 1. Try loading from localStorage first
             try {
                 const stored = localStorage.getItem("ppe_audit_logs");
-                if (stored) auditLogs = JSON.parse(stored);
+                if (stored) {
+                    const auditLogs = JSON.parse(stored);
+                    if (incidentId) {
+                        incident = auditLogs.find(l => l.id === incidentId);
+                    } else if (auditLogs.length > 0) {
+                        incident = auditLogs[0];
+                    }
+                }
             } catch (e) {
-                console.error("Failed to load audit logs", e);
+                console.warn("Could not read from localStorage:", e);
             }
 
-            const incident = auditLogs.find(l => l.id === incidentId) || auditLogs[0];
+            // 2. Fallback to Backend API if not found in localStorage
+            if (!incident) {
+                try {
+                    const endpoint = incidentId ? `/api/audit/incident/${incidentId}` : `/api/audit/latest`;
+                    const res = await fetch(endpoint);
+                    const data = await res.json();
+                    if (data && data.success && data.incident) {
+                        incident = data.incident;
+                    }
+                } catch (apiErr) {
+                    console.warn("Could not fetch incident from backend:", apiErr);
+                }
+            }
+
+            // 3. Fallback to direct snapshot URL if still not found
+            if (!incident && incidentId) {
+                incident = {
+                    id: incidentId,
+                    timestamp: new Date().toLocaleString(),
+                    camera: "CCTV Stream",
+                    totalWorkers: 1,
+                    compliant: 0,
+                    violations: 1,
+                    verdict: "Live Safety Breach Flagged",
+                    snapshotImage: `/media/snapshots/${incidentId}.jpg`
+                };
+            }
 
             if (!incident) {
                 document.getElementById("proof-id").innerText = "Incident Not Found";
-                document.getElementById("proof-verdict").innerText = "The requested incident record was not found in the local audit database.";
+                document.getElementById("proof-verdict").innerText = "No incident records found. Trigger an inspection or live breach first.";
                 document.getElementById("proof-empty-box").classList.remove("hidden");
                 if (window.lucide) window.lucide.createIcons();
                 return;
             }
+
+            currentIncidentId = incident.id;
 
             // Populate header
             document.getElementById("proof-id").innerText = incident.id;
@@ -467,20 +502,68 @@
             // Populate Snapshot Image
             const imgEl = document.getElementById("proof-main-image");
             const emptyEl = document.getElementById("proof-empty-box");
+            const candidateUrl = incident.snapshotImage || `/media/snapshots/${incident.id}.jpg`;
 
-            if (incident.snapshotImage) {
-                currentSnapshotUrl = incident.snapshotImage;
-                imgEl.src = incident.snapshotImage;
+            currentSnapshotUrl = candidateUrl;
+            imgEl.src = candidateUrl;
+            imgEl.onload = () => {
                 imgEl.classList.remove("hidden");
                 emptyEl.classList.add("hidden");
-            } else {
-                imgEl.classList.add("hidden");
-                emptyEl.classList.remove("hidden");
-                document.getElementById("btn-download-img").style.display = "none";
-            }
+            };
+            imgEl.onerror = () => {
+                if (imgEl.src !== window.location.origin + `/media/snapshots/${incident.id}.jpg`) {
+                    imgEl.src = `/media/snapshots/${incident.id}.jpg`;
+                } else {
+                    imgEl.classList.add("hidden");
+                    emptyEl.classList.remove("hidden");
+                    const dlBtn = document.getElementById("btn-download-img");
+                    if (dlBtn) dlBtn.style.display = "none";
+                }
+            };
+
+            // Render multi-camera angle thumbnails if available
+            renderMultiCamAngleThumbnails(incident);
 
             if (window.lucide) window.lucide.createIcons();
         });
+
+        function renderMultiCamAngleThumbnails(incident) {
+            const views = incident.multi_cam_views || incident.multiCamViews;
+            if (!views || Object.keys(views).length <= 1) return;
+
+            const stage = document.querySelector(".proof-image-stage");
+            if (!stage) return;
+
+            let strip = document.getElementById("multicam-thumb-strip");
+            if (!strip) {
+                strip = document.createElement("div");
+                strip.id = "multicam-thumb-strip";
+                strip.style.display = "flex";
+                strip.style.gap = "10px";
+                strip.style.marginTop = "14px";
+                strip.style.justifyContent = "center";
+                strip.style.flexWrap = "wrap";
+                stage.parentNode.appendChild(strip);
+            }
+
+            strip.innerHTML = Object.entries(views).map(([camKey, cData]) => {
+                const imgUrl = cData.url || cData.image;
+                return `
+                    <div style="border:1px solid #333; border-radius:4px; padding:4px; background:#121212; cursor:pointer; text-align:center;" onclick="switchProofView('${imgUrl}')">
+                        <img src="${imgUrl}" style="width:120px; height:68px; object-fit:cover; border-radius:2px;" alt="${cData.label}">
+                        <div style="font-size:10px; color:#aaa; margin-top:2px;">${cData.label || camKey}</div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function switchProofView(url) {
+            const imgEl = document.getElementById("proof-main-image");
+            if (imgEl && url) {
+                imgEl.src = url;
+                currentSnapshotUrl = url;
+            }
+        }
 
         function renderEnforcedRules(incident) {
             const container = document.getElementById("rules-container");

@@ -409,6 +409,10 @@ body {
   border-color: var(--accent);
 }
 
+.cctv-tile.has-mcmt-overlap {
+  border-color: #f97316;
+}
+
 .cctv-tile-header {
   background-color: var(--surface-card);
   border-bottom: 1px solid var(--border-color);

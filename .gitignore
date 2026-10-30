@@ -28,6 +28,9 @@ workdir/rfdetr_10ep_runs/
 workdir/rtdetr_runs/
 workdir/test_output/
 
+# Large training datasets
+datasets/
+
 # OS and Editor metadata
 .DS_Store
 Thumbs.db

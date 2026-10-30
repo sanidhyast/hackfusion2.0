@@ -1,10 +1,16 @@
 """
-PPE Compliance Detection & Violation Summary CLI
+YOLOv8-Only PPE Compliance Detection & Violation Pipeline
 Supports:
-- Single images, image batches, and video files
-- Configurable model backend: RF-DETR-S, RT-DETR, or YOLO
-- Per-worker verdict and anatomical association
-- Structured JSON and Markdown violation summaries
+- Single image, image directories, and live video streams
+- Strictly 5 detection classes:
+    0: Person
+    1: Helmet
+    2: No Helmet
+    3: Vest
+    4: No Vest
+- Anatomical association & per-worker compliance
+- Helmet under arm violation detection
+- JSON and Markdown audit report generation
 """
 
 import os
@@ -16,185 +22,209 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 import cv2
 import numpy as np
+from ultralytics import YOLO
 
 from association import (
     Detection,
     WorkerStatus,
     PPEAssociationEngine,
-    draw_compliance_annotations
+    draw_compliance_annotations,
+    CLASSES
 )
-
-CLASS_MAP = {
-    0: "helmet",
-    1: "gloves",
-    2: "vest",
-    3: "boots",
-    4: "goggles",
-    5: "none",
-    6: "Person",
-    7: "no_helmet",
-    8: "no_goggle",
-    9: "no_gloves",
-    10: "no_boots"
-}
 
 class CompliancePipeline:
     def __init__(
         self,
-        model_type: str = "rfdetr",
         model_path: Optional[str] = None,
+        conf_threshold: float = 0.30,
+        iou_threshold: float = 0.45,
         required_ppe: Optional[List[str]] = None,
-        conf_threshold: float = 0.35,
-        device: str = "cuda"
+        device: str = "0"
     ):
-        self.model_type = model_type.lower()
-        self.device = device
         self.conf_threshold = conf_threshold
+        self.iou_threshold = iou_threshold
+        self.device = device
         self.required_ppe = required_ppe or ["helmet", "vest"]
-        self.engine = PPEAssociationEngine(required_ppe=self.required_ppe)
-        self.model = self._load_model(model_path)
+        self.engine = PPEAssociationEngine(
+            required_ppe=self.required_ppe,
+            min_person_conf=conf_threshold,
+            min_ppe_conf=max(0.15, conf_threshold - 0.10)
+        )
+        self.model_path = model_path or self._find_best_checkpoint()
+        print(f"Initializing YOLOv8-Only Compliance Pipeline from: {self.model_path}")
+        self.model = YOLO(self.model_path)
 
-    def _load_model(self, model_path: Optional[str]):
-        if self.model_type == "rfdetr":
-            from rfdetr import RFDETRSmall
-            print(f"Loading RF-DETR-S model from {model_path or 'pretrained default'}...")
-            if model_path and os.path.exists(model_path):
-                return RFDETRSmall.from_checkpoint(model_path)
-            return RFDETRSmall()
-        elif self.model_type in {"rtdetr", "yolo"}:
-            from ultralytics import RTDETR, YOLO
-            cls = RTDETR if self.model_type == "rtdetr" else YOLO
-            path = model_path or ("rtdetr-l.pt" if self.model_type == "rtdetr" else "yolo11s.pt")
-            print(f"Loading {self.model_type.upper()} model from {path}...")
-            return cls(path)
-        else:
-            raise ValueError(f"Unknown model_type: {self.model_type}")
+    def _find_best_checkpoint(self) -> str:
+        candidates = [
+            Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\workdir\yolov8_5class_runs\yolov8s_5class_finetuned\weights\best.pt"),
+            Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\workdir\yolov8_5class_runs\yolov8s_5class_finetuned\weights\last.pt"),
+            Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\workdir\yolov8m_ppe.pt"),
+            Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\yolov8s.pt")
+        ]
+        for p in candidates:
+            if p.exists():
+                return str(p)
+        return "yolov8s.pt"
 
-    def predict_image(self, img_bgr: np.ndarray, conf_thresh: Optional[float] = None) -> Tuple[List[Detection], float]:
-        """Runs model inference and returns raw normalized detections and latency (ms)."""
+    def detect_and_associate(
+        self,
+        image: np.ndarray,
+        conf: Optional[float] = None
+    ) -> Tuple[List[WorkerStatus], List[Detection], Dict[str, Any], float]:
+        """
+        Runs YOLOv8 detection and spatial anatomical association.
+        Returns:
+          - worker_statuses: List[WorkerStatus]
+          - unassigned_items: List[Detection]
+          - summary: Dict[str, Any]
+          - latency_ms: float
+        """
         t0 = time.perf_counter()
+        active_conf = conf if conf is not None else self.conf_threshold
+
+        # Run YOLOv8 forward pass
+        results = self.model.predict(
+            source=image,
+            conf=active_conf,
+            iou=self.iou_threshold,
+            device=self.device,
+            verbose=False
+        )
+
+        t_infer = (time.perf_counter() - t0) * 1000.0
+
         detections = []
-        thresh = conf_thresh if conf_thresh is not None else self.conf_threshold
+        if results and len(results) > 0:
+            boxes_obj = results[0].boxes
+            if boxes_obj is not None and len(boxes_obj) > 0:
+                xyxy = boxes_obj.xyxy.cpu().numpy()
+                confs = boxes_obj.conf.cpu().numpy()
+                classes = boxes_obj.cls.cpu().numpy().astype(int)
 
-        if self.model_type == "rfdetr":
-            # RF-DETR inference on RGB image with sensitive equipment floor (0.06)
-            # This ensures overhead/glared helmets and vests are captured even if person conf slider is higher
-            model_thresh = min(0.06, thresh)
-            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-            results = self.model.predict(img_rgb, threshold=model_thresh)
-            # results from supervision Detections
-            if hasattr(results, "xyxy") and results.xyxy is not None and len(results.xyxy) > 0:
-                for i in range(len(results.xyxy)):
-                    box = results.xyxy[i].tolist()
-                    cid = int(results.class_id[i]) if results.class_id is not None else 0
-                    conf = float(results.confidence[i]) if results.confidence is not None else 1.0
-                    cname = CLASS_MAP.get(cid, f"class_{cid}")
-                    detections.append(Detection(box=box, class_id=cid, class_name=cname, confidence=conf))
-        else:
-            # Ultralytics RT-DETR / YOLO inference
-            results = self.model.predict(img_bgr, conf=self.conf_threshold, device=self.device, verbose=False)
-            res = results[0]
-            boxes = res.boxes.xyxy.cpu().numpy()
-            clss = res.boxes.cls.cpu().numpy()
-            confs = res.boxes.conf.cpu().numpy()
-            for b, c, conf in zip(boxes, clss, confs):
-                cid = int(c)
-                cname = res.names.get(cid, CLASS_MAP.get(cid, f"class_{cid}"))
-                detections.append(Detection(box=b.tolist(), class_id=cid, class_name=cname, confidence=float(conf)))
+                for box, score, cid in zip(xyxy, confs, classes):
+                    if cid in CLASSES:
+                        detections.append(
+                            Detection(
+                                box=[float(x) for x in box],
+                                class_id=cid,
+                                class_name=CLASSES[cid],
+                                confidence=float(score)
+                            )
+                        )
 
-        latency_ms = (time.perf_counter() - t0) * 1000.0
-        return detections, latency_ms
+        # Run association engine
+        t1 = time.perf_counter()
+        worker_statuses, unassigned, summary = self.engine.associate_and_evaluate(detections)
+        t_assoc = (time.perf_counter() - t1) * 1000.0
+        total_latency = (time.perf_counter() - t0) * 1000.0
 
-    def process_image(self, img_bgr: np.ndarray, conf_thresh: Optional[float] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
-        raw_dets, latency_ms = self.predict_image(img_bgr, conf_thresh=conf_thresh)
-        thresh = conf_thresh if conf_thresh is not None else self.conf_threshold
-        self.engine.min_person_conf = thresh
-        self.engine.min_ppe_conf = min(0.06, thresh)
-        workers, unassigned, summary = self.engine.associate_and_evaluate(raw_dets)
-        annotated = draw_compliance_annotations(img_bgr, workers, unassigned)
-        summary["latency_ms"] = round(latency_ms, 2)
-        summary["fps"] = round(1000.0 / latency_ms, 1) if latency_ms > 0 else 0.0
+        summary["latency_breakdown"] = {
+            "yolov8_inference_ms": round(t_infer, 1),
+            "association_ms": round(t_assoc, 1),
+            "total_ms": round(total_latency, 1)
+        }
+
+        return worker_statuses, unassigned, summary, total_latency
+
+    def process_image(
+        self,
+        image: np.ndarray,
+        conf_thresh: Optional[float] = None
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        workers, unassigned, summary, latency = self.detect_and_associate(image, conf=conf_thresh)
+        annotated = draw_compliance_annotations(image, workers, unassigned)
+        fps = round(1000.0 / latency, 1) if latency > 0 else 60.0
+        summary["latency_ms"] = round(latency, 1)
+        summary["fps"] = fps
         return annotated, summary
 
-    def process_video(self, video_path: str, output_path: str, max_frames: Optional[int] = None):
-        cap = cv2.VideoCapture(video_path)
+    def process_image_file(self, img_path: str, output_path: Optional[str] = None) -> Dict[str, Any]:
+        img = cv2.imread(img_path)
+        if img is None:
+            raise ValueError(f"Could not read image: {img_path}")
+
+        workers, unassigned, summary, latency = self.detect_and_associate(img)
+
+        if output_path:
+            annotated = draw_compliance_annotations(img, workers, unassigned)
+            cv2.imwrite(output_path, annotated)
+            summary["annotated_image_path"] = output_path
+
+        return summary
+
+    def process_video(
+        self,
+        in_video_path: str,
+        out_video_path: str,
+        max_frames: Optional[int] = 150,
+        conf_thresh: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Processes video frames through the YOLOv8 compliance pipeline.
+        Saves annotated video to out_video_path and returns per-frame summaries.
+        """
+        cap = cv2.VideoCapture(in_video_path)
         if not cap.isOpened():
-            print(f"Error opening video {video_path}")
-            return
+            raise ValueError(f"Could not open input video: {in_video_path}")
 
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 640
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 360
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if fps <= 0 or np.isnan(fps):
+            fps = 25.0
 
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        writer = cv2.VideoWriter(out_video_path, fourcc, fps, (width, height))
 
+        frame_summaries = []
         frame_idx = 0
-        all_summaries = []
 
-        print(f"Processing video: {video_path} ({total_frames} frames)...")
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret or (max_frames and frame_idx >= max_frames):
-                break
+        try:
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-            annotated_frame, summary = self.process_image(frame)
-            out.write(annotated_frame)
-            all_summaries.append({"frame": frame_idx, "summary": summary})
-            frame_idx += 1
+                frame_idx += 1
+                if max_frames and frame_idx > max_frames:
+                    break
 
-            if frame_idx % 30 == 0:
-                print(f"Processed {frame_idx}/{total_frames} frames (Current FPS: {summary['fps']})")
+                annotated, summary = self.process_image(frame, conf_thresh=conf_thresh)
+                if writer.isOpened():
+                    writer.write(annotated)
 
-        cap.release()
-        out.release()
-        print(f"Video processing finished. Saved to {output_path}")
-        return all_summaries
+                frame_summaries.append({
+                    "frame": frame_idx,
+                    "summary": summary
+                })
+        finally:
+            cap.release()
+            writer.release()
+
+        return frame_summaries
+
 
 def main():
-    parser = argparse.ArgumentParser(description="PPE Compliance Detection & Association Engine")
-    parser.add_argument("--source", type=str, required=True, help="Path to image, image directory, or video")
-    parser.add_argument("--model-type", type=str, default="rfdetr", choices=["rfdetr", "rtdetr", "yolo"])
-    parser.add_argument("--model-path", type=str, default=None)
-    parser.add_argument("--output-dir", type=str, default="outputs")
-    parser.add_argument("--conf", type=float, default=0.35)
+    parser = argparse.ArgumentParser(description="YOLOv8-Only PPE Compliance Detection CLI")
+    parser.add_argument("--source", type=str, required=True, help="Path to image or directory")
+    parser.add_argument("--model", type=str, default=None, help="Path to YOLOv8 checkpoint")
+    parser.add_argument("--conf", type=float, default=0.30, help="Confidence threshold")
+    parser.add_argument("--output", type=str, default="output", help="Output directory")
     args = parser.parse_args()
 
-    out_dir = Path(args.output_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    os.makedirs(args.output, exist_ok=True)
+    pipeline = CompliancePipeline(model_path=args.model, conf_threshold=args.conf)
 
-    pipeline = CompliancePipeline(
-        model_type=args.model_type,
-        model_path=args.model_path,
-        conf_threshold=args.conf
-    )
-
-    src = Path(args.source)
-    if src.is_file() and src.suffix.lower() in {".mp4", ".avi", ".mov", ".mkv"}:
-        out_vid = out_dir / f"annotated_{src.name}"
-        pipeline.process_video(str(src), str(out_vid))
-    elif src.is_file():
-        img = cv2.imread(str(src))
-        annotated, summary = pipeline.process_image(img)
-        out_img = out_dir / f"annotated_{src.name}"
-        cv2.imwrite(str(out_img), annotated)
-        out_json = out_dir / f"{src.stem}_summary.json"
-        with open(out_json, "w") as f:
-            json.dump(summary, f, indent=2)
-        print(f"Result saved to {out_img}")
-        print("Violation Summary:")
-        print(json.dumps(summary, indent=2))
-    elif src.is_dir():
-        imgs = [f for f in src.iterdir() if f.suffix.lower() in {".jpg", ".jpeg", ".png"}]
-        print(f"Processing {len(imgs)} images from {src}...")
-        for p in imgs:
-            img = cv2.imread(str(p))
-            if img is None:
-                continue
-            annotated, summary = pipeline.process_image(img)
-            cv2.imwrite(str(out_dir / f"annotated_{p.name}"), annotated)
-        print(f"Done! Results written to {out_dir}")
+    p = Path(args.source)
+    if p.is_file():
+        out_img = str(Path(args.output) / f"annotated_{p.name}")
+        summary = pipeline.process_image_file(str(p), out_img)
+        print("\n" + "=" * 60)
+        print(f"PROCESSED: {p.name} (Latency: {summary['latency_breakdown']['total_ms']} ms)")
+        print(f"Workers: {summary['total_workers']} | Compliant: {summary['compliant_workers']} | Violations: {summary['violation_workers']}")
+        for w in summary["workers"]:
+            print(f"  Worker #{w['worker_id']}: {w['verdict']} - Missing: {w['missing_ppe']} - Flags: {w['negative_flags']}")
+        print("=" * 60)
 
 if __name__ == "__main__":
     main()
