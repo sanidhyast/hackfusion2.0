@@ -1292,7 +1292,10 @@ function drawImageOverlayBoxes(workers) {
         if (state.imageOverlays.labels) {
             ctx.save();
             const confPct = Math.round(w.confidence * 100);
-            const labelText = `Worker #${w.worker_id} - ${isViolation ? 'Violation' : 'Compliant'} - ${confPct}%`;
+            const violationSummary = (isViolation && w.missing_chips && w.missing_chips.length > 0)
+                ? ` [${w.missing_chips.join(', ')}]`
+                : '';
+            const labelText = `Worker #${w.worker_id} - ${isViolation ? 'Violation' : 'Compliant'} - ${confPct}%${violationSummary}`;
             
             ctx.font = "600 11px Inter, sans-serif";
             const textMetrics = ctx.measureText(labelText);
@@ -1756,33 +1759,50 @@ function captureCameraSnapshot(camIndex) {
 }
 
 function captureImageInspectionSnapshot() {
-    // 1. Prefer backend processed image URL if available (persistent on server disk)
-    if (state.currentImageDetections && state.currentImageDetections.processed_image_url) {
-        return state.currentImageDetections.processed_image_url;
-    }
-    if (state.currentImageDetections && state.currentImageDetections.annotated_image_base64) {
-        return state.currentImageDetections.annotated_image_base64;
-    }
-    // 2. Offscreen composite using correct element IDs: #image-display-element and #image-overlay-canvas
     try {
         const img = document.getElementById("image-display-element");
         const canvas = document.getElementById("image-overlay-canvas");
-        if (!img || !img.naturalWidth) return null;
+        if (!img || !img.naturalWidth || !canvas) {
+            return state.currentImageDetections?.processed_image_url || null;
+        }
 
         const off = document.createElement("canvas");
-        const scale = Math.min(1.0, 960 / Math.max(img.naturalWidth, img.naturalHeight));
-        off.width = Math.round(img.naturalWidth * scale);
-        off.height = Math.round(img.naturalHeight * scale);
+        off.width = canvas.width || 1280;
+        off.height = canvas.height || 720;
         const ctx = off.getContext("2d");
 
-        ctx.drawImage(img, 0, 0, off.width, off.height);
-        if (canvas) {
-            ctx.drawImage(canvas, 0, 0, off.width, off.height);
+        // Fill background
+        ctx.fillStyle = "#050505";
+        ctx.fillRect(0, 0, off.width, off.height);
+
+        // Aspect fit matching canvas
+        const naturalW = img.naturalWidth || 1280;
+        const naturalH = img.naturalHeight || 720;
+        const imageAspect = naturalW / naturalH;
+        const canvasAspect = off.width / off.height;
+        let renderW, renderH, offsetX, offsetY;
+        if (imageAspect > canvasAspect) {
+            renderW = off.width;
+            renderH = off.width / imageAspect;
+            offsetX = 0;
+            offsetY = (off.height - renderH) / 2;
+        } else {
+            renderH = off.height;
+            renderW = off.height * imageAspect;
+            offsetX = (off.width - renderW) / 2;
+            offsetY = 0;
         }
-        return off.toDataURL("image/jpeg", 0.80);
+
+        // Draw image frame
+        ctx.drawImage(img, offsetX, offsetY, renderW, renderH);
+
+        // Draw exact overlay canvas on top (which has the red boxes and violation chips!)
+        ctx.drawImage(canvas, 0, 0);
+
+        return off.toDataURL("image/jpeg", 0.85);
     } catch (e) {
         console.warn("Could not capture image inspection snapshot:", e);
-        return null;
+        return state.currentImageDetections?.processed_image_url || null;
     }
 }
 
@@ -1813,14 +1833,35 @@ function autoLogInspectionIncident(sourceName, evaluatedList) {
 
     let summary = "";
     let snapshotImage = null;
+    let activeRules = {};
+    let workers = [];
 
     if (isVideo) {
         summary = violations.slice(0, 3).map(i => `Frame #${i.frame}: ${(i.missing_chips || []).join(', ')}`).join(" | ");
         if (violations.length > 3) summary += ` (+${violations.length - 3} more)`;
         snapshotImage = captureVideoInspectionSnapshot();
+        activeRules = { ...state.videoRules };
+        workers = evaluatedList.map(i => ({
+            worker_id: `Frame #${i.frame} (${i.timestamp_sec}s)`,
+            confidence: i.confidence,
+            is_compliant: i.is_compliant,
+            verdict: i.is_compliant ? "COMPLIANT" : "VIOLATION",
+            missing_chips: i.missing_chips || [],
+            detected_ppe: i.detected_ppe || {}
+        }));
     } else {
         summary = violations.map(w => `Worker #${w.worker_id}: ${(w.missing_chips || []).join(', ')}`).join(" | ");
         snapshotImage = captureImageInspectionSnapshot();
+        activeRules = { ...state.imageRules };
+        workers = evaluatedList.map(w => ({
+            worker_id: w.worker_id,
+            confidence: w.confidence,
+            is_compliant: w.is_compliant,
+            verdict: w.is_compliant ? "COMPLIANT" : "VIOLATION",
+            missing_chips: w.missing_chips || [],
+            detected_ppe: w.detected_ppe || {},
+            negative_flags: w.negative_flags || []
+        }));
     }
 
     const logEntry = {
@@ -1831,7 +1872,9 @@ function autoLogInspectionIncident(sourceName, evaluatedList) {
         compliant: Math.max(0, count - violations.length),
         violations: violations.length,
         verdict: summary,
-        snapshotImage: snapshotImage
+        snapshotImage: snapshotImage,
+        activeRules: activeRules,
+        workers: workers
     };
 
     state.auditLogs.unshift(logEntry);
@@ -1848,6 +1891,8 @@ function addToAuditReport(sourceType = "System") {
     let sourceName = "CCTV Multi-Camera Console";
     let summary = "";
     let snapshotImage = null;
+    let activeRules = {};
+    let workers = [];
 
     if (isImage) {
         if (!state.currentImageDetections) return alert("No active image inspection to record.");
@@ -1862,6 +1907,16 @@ function addToAuditReport(sourceType = "System") {
             summary = "Full PPE Compliance Verified";
         }
         snapshotImage = captureImageInspectionSnapshot();
+        activeRules = { ...state.imageRules };
+        workers = evaluated.map(w => ({
+            worker_id: w.worker_id,
+            confidence: w.confidence,
+            is_compliant: w.is_compliant,
+            verdict: w.is_compliant ? "COMPLIANT" : "VIOLATION",
+            missing_chips: w.missing_chips || [],
+            detected_ppe: w.detected_ppe || {},
+            negative_flags: w.negative_flags || []
+        }));
     } else if (isVideo) {
         if (!state.currentVideoData) return alert("No active video inspection to record.");
         const evaluated = getEvaluatedVideoIncidents();
@@ -1876,6 +1931,15 @@ function addToAuditReport(sourceType = "System") {
             summary = "No Violations Spotted Across Frames";
         }
         snapshotImage = captureVideoInspectionSnapshot();
+        activeRules = { ...state.videoRules };
+        workers = evaluated.map(i => ({
+            worker_id: `Frame #${i.frame} (${i.timestamp_sec}s)`,
+            confidence: i.confidence,
+            is_compliant: i.is_compliant,
+            verdict: i.is_compliant ? "COMPLIANT" : "VIOLATION",
+            missing_chips: i.missing_chips || [],
+            detected_ppe: i.detected_ppe || {}
+        }));
     } else {
         const allWorkers = Object.values(state.activeCameras).flatMap(c => c.detections || []);
         if (allWorkers.length === 0) return alert("No active camera streams to record.");
@@ -1904,8 +1968,25 @@ function addToAuditReport(sourceType = "System") {
             if (camObj && camObj.roomName) {
                 sourceName = `CAM-0${targetCam} (${camObj.roomName})`;
             }
+            if (camObj && camObj.rules) {
+                activeRules = { ...camObj.rules };
+            } else {
+                activeRules = { ...state.cctvRules };
+            }
             snapshotImage = captureCameraSnapshot(targetCam);
+        } else {
+            activeRules = { ...state.cctvRules };
         }
+
+        workers = allWorkers.map(w => ({
+            worker_id: `${w.camera || 'CAM'} Worker #${w.worker_id}`,
+            confidence: w.confidence,
+            is_compliant: w.is_compliant,
+            verdict: w.is_compliant ? "COMPLIANT" : "VIOLATION",
+            missing_chips: w.missing_chips || [],
+            detected_ppe: w.detected_ppe || {},
+            negative_flags: w.negative_flags || []
+        }));
     }
 
     const logEntry = {
@@ -1916,7 +1997,9 @@ function addToAuditReport(sourceType = "System") {
         compliant: Math.max(0, count - violCount),
         violations: violCount,
         verdict: summary,
-        snapshotImage: snapshotImage
+        snapshotImage: snapshotImage,
+        activeRules: activeRules,
+        workers: workers
     };
 
     state.auditLogs.unshift(logEntry);

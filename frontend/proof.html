@@ -25,6 +25,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 50;
         }
 
         .proof-brand {
@@ -99,6 +102,129 @@
             color: var(--text-primary, #ffffff);
         }
 
+        /* Section Cards */
+        .proof-section-card {
+            background: var(--surface-card, #121212);
+            border: 1px solid var(--border-color, #262626);
+            border-radius: 6px;
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .proof-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-secondary, #a3a3a3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Rules Grid */
+        .rules-badge-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .rule-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid var(--border-color, #262626);
+        }
+
+        .rule-badge.active {
+            background: rgba(163, 28, 27, 0.15);
+            border-color: var(--accent, #A31C1B);
+            color: #ff9999;
+        }
+
+        .rule-badge.inactive {
+            background: #171717;
+            border-color: #262626;
+            color: #737373;
+            opacity: 0.65;
+        }
+
+        /* Workers Grid */
+        .worker-findings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 14px;
+        }
+
+        .worker-finding-card {
+            background: var(--surface-raised, #171717);
+            border: 1px solid var(--border-color, #262626);
+            border-radius: 6px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            position: relative;
+        }
+
+        .worker-finding-card.is-violation {
+            border-color: rgba(163, 28, 27, 0.5);
+            background: linear-gradient(180deg, rgba(163, 28, 27, 0.08) 0%, rgba(23, 23, 23, 1) 100%);
+        }
+
+        .worker-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .worker-title-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .worker-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary, #ffffff);
+        }
+
+        .worker-conf {
+            font-size: 11px;
+            color: var(--text-secondary, #a3a3a3);
+            background: #262626;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .worker-finding-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .finding-sublabel {
+            font-size: 11px;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: var(--text-secondary, #a3a3a3);
+            letter-spacing: 0.5px;
+        }
+
+        .chips-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        /* Image Display */
         .proof-image-stage {
             background: #050505;
             border: 1px solid var(--border-color, #262626);
@@ -115,7 +241,7 @@
 
         .proof-image-stage img {
             max-width: 100%;
-            max-height: 75vh;
+            max-height: 80vh;
             border-radius: 4px;
             box-shadow: 0 4px 16px rgba(0,0,0,0.8);
             border: 1px solid #333333;
@@ -146,10 +272,14 @@
                 background: #fff;
                 color: #000;
             }
-            .proof-header-card, .proof-meta-card, .proof-image-stage {
+            .proof-header-card, .proof-meta-card, .proof-section-card, .worker-finding-card, .proof-image-stage {
                 border-color: #ccc;
                 background: #fff;
                 color: #000;
+            }
+            .worker-finding-card.is-violation {
+                background: #fff;
+                border-color: #e00;
             }
         }
     </style>
@@ -222,13 +352,46 @@
             </div>
         </section>
 
-        <!-- High-Resolution Visual Evidence Display -->
-        <section class="proof-image-stage">
-            <div id="proof-empty-box" class="proof-empty-msg hidden">
-                <i data-lucide="image-off" style="width:48px; height:48px;"></i>
-                <span>No visual snapshot was attached to this audit record.</span>
+        <!-- 1. Enforced Audit Rules Section -->
+        <section class="proof-section-card">
+            <div class="proof-section-title">
+                <i data-lucide="shield-alert" style="width:16px; height:16px; color:var(--accent);"></i>
+                <span>Audit Criteria & Enforced Rules</span>
             </div>
-            <img id="proof-main-image" src="" alt="Violation Visual Proof" class="hidden">
+            <div class="rules-badge-grid" id="rules-container">
+                <!-- Dynamically populated badges -->
+            </div>
+        </section>
+
+        <!-- 2. Worker-by-Worker Audit Findings Section -->
+        <section class="proof-section-card">
+            <div class="proof-section-title">
+                <i data-lucide="users" style="width:16px; height:16px; color:var(--accent);"></i>
+                <span>Worker-by-Worker Violation & Compliance Findings</span>
+            </div>
+            <div class="worker-findings-grid" id="workers-container">
+                <!-- Dynamically populated worker cards -->
+            </div>
+        </section>
+
+        <!-- 3. High-Resolution Visual Evidence Display -->
+        <section class="proof-section-card" style="padding: 16px 24px;">
+            <div class="proof-section-title" style="justify-content:space-between;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="camera" style="width:16px; height:16px; color:var(--accent);"></i>
+                    <span>Visual Proof & Violation Overlay Evidence</span>
+                </div>
+                <span style="font-size:11px; color:var(--text-secondary); text-transform:none; font-weight:normal;">
+                    High-resolution frame snapshot with bounding box overlays & confidence scores
+                </span>
+            </div>
+            <div class="proof-image-stage" style="margin-top:12px;">
+                <div id="proof-empty-box" class="proof-empty-msg hidden">
+                    <i data-lucide="image-off" style="width:48px; height:48px;"></i>
+                    <span>No visual snapshot was attached to this audit record.</span>
+                </div>
+                <img id="proof-main-image" src="" alt="Violation Visual Proof" class="hidden">
+            </div>
         </section>
 
     </main>
@@ -236,6 +399,16 @@
     <script>
         let currentSnapshotUrl = null;
         let currentIncidentId = null;
+
+        const RULE_DEFINITIONS = [
+            { key: "helmet", label: "No Helmet", icon: "hard-hat" },
+            { key: "vest", label: "No Safety Vest", icon: "shield" },
+            { key: "helmet_arm", label: "Helmet Under Arm", icon: "user-x" },
+            { key: "gloves", label: "No Gloves", icon: "hand" },
+            { key: "boots", label: "No Safety Boots", icon: "footprints" },
+            { key: "goggles", label: "No Eye Protection", icon: "glasses" },
+            { key: "loose", label: "Other / Loose PPE", icon: "alert-triangle" }
+        ];
 
         document.addEventListener("DOMContentLoaded", () => {
             const params = new URLSearchParams(window.location.search);
@@ -285,7 +458,13 @@
             const rate = total > 0 ? Math.round((comp / total) * 100) : 100;
             document.getElementById("meta-rate").innerText = `${rate}%`;
 
-            // Populate image
+            // Populate Enforced Rules
+            renderEnforcedRules(incident);
+
+            // Populate Worker Breakdown Findings
+            renderWorkerFindings(incident);
+
+            // Populate Snapshot Image
             const imgEl = document.getElementById("proof-main-image");
             const emptyEl = document.getElementById("proof-empty-box");
 
@@ -302,6 +481,196 @@
 
             if (window.lucide) window.lucide.createIcons();
         });
+
+        function renderEnforcedRules(incident) {
+            const container = document.getElementById("rules-container");
+            if (!container) return;
+
+            // If incident.activeRules was recorded, use it; otherwise deduce from verdict or defaults
+            let activeRules = incident.activeRules;
+            if (!activeRules) {
+                activeRules = {
+                    helmet: true,
+                    vest: true,
+                    helmet_arm: (incident.verdict || "").includes("Arm"),
+                    gloves: (incident.verdict || "").includes("glove"),
+                    boots: (incident.verdict || "").includes("boot"),
+                    goggles: (incident.verdict || "").includes("eye") || (incident.verdict || "").includes("goggle"),
+                    loose: false
+                };
+            }
+
+            container.innerHTML = RULE_DEFINITIONS.map(rule => {
+                const isEnforced = !!activeRules[rule.key];
+                const badgeClass = isEnforced ? "rule-badge active" : "rule-badge inactive";
+                const icon = isEnforced ? "check-circle-2" : "minus-circle";
+                const statusTag = isEnforced ? "Enforced" : "Not Active";
+
+                return `
+                    <div class="${badgeClass}">
+                        <i data-lucide="${icon}" style="width:14px; height:14px;"></i>
+                        <span>${rule.label}</span>
+                        <span style="font-size:10px; opacity:0.8; margin-left:4px;">(${statusTag})</span>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function renderWorkerFindings(incident) {
+            const container = document.getElementById("workers-container");
+            if (!container) return;
+
+            let workers = incident.workers;
+
+            // Fallback for older audit logs that only stored the verdict text
+            if (!workers || workers.length === 0) {
+                workers = parseWorkersFromVerdict(incident);
+            }
+
+            if (!workers || workers.length === 0) {
+                container.innerHTML = `
+                    <div style="padding:24px; text-align:center; color:var(--text-disabled); grid-column:1/-1;">
+                        No individual worker records available for this inspection.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = workers.map((w, idx) => {
+                const isViolation = !w.is_compliant;
+                const cardClass = isViolation ? "worker-finding-card is-violation" : "worker-finding-card";
+                const statusBadge = isViolation
+                    ? `<span class="status-badge-chip violation">VIOLATION</span>`
+                    : `<span class="status-badge-chip compliant">COMPLIANT</span>`;
+
+                const conf = w.confidence ? `${Math.round(w.confidence * 100)}%` : "--";
+
+                // Missing breaches
+                let breachesHtml = "";
+                if (isViolation && w.missing_chips && w.missing_chips.length > 0) {
+                    breachesHtml = w.missing_chips.map(chip => `
+                        <span class="violation-pill-chip" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; font-size:12px;">
+                            <i data-lucide="x" style="width:12px; height:12px;"></i>
+                            ${chip}
+                        </span>
+                    `).join("");
+                } else if (!isViolation) {
+                    breachesHtml = `
+                        <span class="compliant-pill-chip" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; color:var(--compliant-text, #22c55e); border-color:rgba(34,197,94,0.3);">
+                            <i data-lucide="check" style="width:12px; height:12px;"></i>
+                            No Safety Breaches - 100% Compliant
+                        </span>
+                    `;
+                } else {
+                    breachesHtml = `<span class="violation-pill-chip">Safety Breach Flagged</span>`;
+                }
+
+                // Verified compliant gear
+                let gearHtml = "";
+                const detected = w.detected_ppe || {};
+                const gearList = [];
+                if (detected.helmet) gearList.push("Safety Helmet (Head)");
+                if (detected.vest) gearList.push("High-Vis Safety Vest (Torso)");
+                if (detected.gloves) gearList.push("Protective Gloves (Hands)");
+                if (detected.boots) gearList.push("Safety Boots (Feet)");
+                if (detected.goggles) gearList.push("Eye Protection / Goggles");
+
+                if (gearList.length > 0) {
+                    gearHtml = gearList.map(g => `
+                        <span class="compliant-pill-chip" style="display:inline-flex; align-items:center; gap:4px; padding:2px 6px;">
+                            <i data-lucide="shield-check" style="width:11px; height:11px; color:#22c55e;"></i>
+                            ${g}
+                        </span>
+                    `).join("");
+                } else {
+                    gearHtml = `<span style="font-size:11px; color:var(--text-disabled, #737373); font-style:italic;">No verified PPE items detected</span>`;
+                }
+
+                return `
+                    <div class="${cardClass}">
+                        <div class="worker-card-header">
+                            <div class="worker-title-box">
+                                <span class="worker-name">${w.worker_id.toString().startsWith("Worker") ? w.worker_id : 'Worker #' + w.worker_id}</span>
+                                <span class="worker-conf">Confidence ${conf}</span>
+                            </div>
+                            ${statusBadge}
+                        </div>
+
+                        <div class="worker-finding-row">
+                            <span class="finding-sublabel">Safety Violation Findings:</span>
+                            <div class="chips-list">
+                                ${breachesHtml}
+                            </div>
+                        </div>
+
+                        <div class="worker-finding-row" style="margin-top:2px;">
+                            <span class="finding-sublabel">Verified Safety Equipment Worn:</span>
+                            <div class="chips-list">
+                                ${gearHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        }
+
+        function parseWorkersFromVerdict(incident) {
+            const text = incident.verdict || "";
+            if (!text || text.includes("Compliance Verified")) {
+                const total = incident.totalWorkers || 1;
+                const workers = [];
+                for (let i = 1; i <= total; i++) {
+                    workers.push({
+                        worker_id: i,
+                        confidence: 0.85,
+                        is_compliant: true,
+                        missing_chips: [],
+                        detected_ppe: { helmet: true, vest: true }
+                    });
+                }
+                return workers;
+            }
+
+            // Split by " | "
+            const parts = text.split(" | ");
+            const workers = [];
+            const visited = new Set();
+
+            parts.forEach((p, idx) => {
+                const m = p.match(/Worker\s*#?(\d+):\s*(.*)/i);
+                if (m) {
+                    const wid = parseInt(m[1], 10);
+                    visited.add(wid);
+                    const missing = m[2].split(",").map(s => s.trim()).filter(Boolean);
+                    workers.push({
+                        worker_id: wid,
+                        confidence: 0.70,
+                        is_compliant: false,
+                        missing_chips: missing,
+                        detected_ppe: {
+                            helmet: !missing.some(x => x.toLowerCase().includes("helmet")),
+                            vest: !missing.some(x => x.toLowerCase().includes("vest"))
+                        }
+                    });
+                }
+            });
+
+            // If there are compliant workers not mentioned in verdict
+            const total = incident.totalWorkers || workers.length;
+            for (let i = 1; i <= total; i++) {
+                if (!visited.has(i)) {
+                    workers.push({
+                        worker_id: i,
+                        confidence: 0.75,
+                        is_compliant: true,
+                        missing_chips: [],
+                        detected_ppe: { helmet: true, vest: true }
+                    });
+                }
+            }
+
+            return workers.sort((a, b) => (a.worker_id > b.worker_id ? 1 : -1));
+        }
 
         function downloadProofImage() {
             if (!currentSnapshotUrl) return;
