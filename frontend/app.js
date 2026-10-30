@@ -25,6 +25,8 @@ const state = {
     imageZoom: 1.0,
     imageRotation: 0,
     selectedWorkerId: null,
+    imageQueue: [], // Array of { file, name, objectUrl, detections, latencyMs }
+    currentImageIndex: 0,
 
     // Image Overlays
     imageOverlays: {
@@ -93,6 +95,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.key === "Escape") {
             closeCameraDeviceModal();
             closeProofLightbox();
+        } else if (state.currentTab === "image" && state.imageQueue && state.imageQueue.length > 1) {
+            if (e.key === "ArrowLeft") {
+                navigateImage(-1);
+            } else if (e.key === "ArrowRight") {
+                navigateImage(1);
+            }
         }
     });
 
@@ -1195,15 +1203,15 @@ function drawCanvasBoxes(canvasId, workers, isFocused = true) {
 }
 
 // -------------------------------------------------------------
-// 3. Dedicated Image Inspection (Starts Clean)
+// 3. Dedicated Image Inspection & Multi-Image Carousel
 // -------------------------------------------------------------
 function initImageControls() {
     const fileInput = document.getElementById("hidden-image-upload");
     const dropzone = document.getElementById("image-dropzone");
 
     fileInput.addEventListener("change", (e) => {
-        if (e.target.files && e.target.files[0]) {
-            inspectUploadedImage(e.target.files[0]);
+        if (e.target.files && e.target.files.length > 0) {
+            handleMultipleImageUpload(e.target.files);
         }
     });
 
@@ -1219,8 +1227,8 @@ function initImageControls() {
     dropzone.addEventListener("drop", (e) => {
         e.preventDefault();
         dropzone.style.borderColor = "#2e2e2e";
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            inspectUploadedImage(e.dataTransfer.files[0]);
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleMultipleImageUpload(e.dataTransfer.files);
         }
     });
 
@@ -1231,12 +1239,9 @@ function initImageControls() {
         });
         stage.addEventListener("drop", (e) => {
             e.preventDefault();
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                inspectUploadedImage(e.dataTransfer.files[0]);
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleMultipleImageUpload(e.dataTransfer.files);
             }
-        });
-        stage.addEventListener("dblclick", () => {
-            fileInput.click();
         });
     }
 
@@ -1251,7 +1256,14 @@ function initImageControls() {
         reFilterImageWorkers();
         if (state.currentImageFile) {
             clearTimeout(imageConfDebounce);
-            imageConfDebounce = setTimeout(() => inspectUploadedImage(state.currentImageFile), 350);
+            imageConfDebounce = setTimeout(() => {
+                if (state.imageQueue && state.imageQueue[state.currentImageIndex]) {
+                    state.imageQueue[state.currentImageIndex].detections = null;
+                    displayImageFromQueue(state.currentImageIndex);
+                } else {
+                    inspectUploadedImage(state.currentImageFile);
+                }
+            }, 350);
         }
     });
 
@@ -1265,9 +1277,162 @@ function initImageControls() {
         reFilterImageWorkers();
         if (state.currentImageFile) {
             clearTimeout(imageConfDebounce);
-            imageConfDebounce = setTimeout(() => inspectUploadedImage(state.currentImageFile), 350);
+            imageConfDebounce = setTimeout(() => {
+                if (state.imageQueue && state.imageQueue[state.currentImageIndex]) {
+                    state.imageQueue[state.currentImageIndex].detections = null;
+                    displayImageFromQueue(state.currentImageIndex);
+                } else {
+                    inspectUploadedImage(state.currentImageFile);
+                }
+            }, 350);
         }
     });
+}
+
+async function handleMultipleImageUpload(fileList) {
+    const validFiles = Array.from(fileList).filter(f => f.type.startsWith("image/"));
+    if (validFiles.length === 0) return;
+
+    state.imageQueue = validFiles.map(file => ({
+        file: file,
+        name: file.name,
+        objectUrl: URL.createObjectURL(file),
+        detections: null,
+        latencyMs: 0
+    }));
+    state.currentImageIndex = 0;
+
+    await displayImageFromQueue(0);
+}
+
+async function navigateImage(delta) {
+    if (!state.imageQueue || state.imageQueue.length <= 1) return;
+    const newIdx = state.currentImageIndex + delta;
+    if (newIdx >= 0 && newIdx < state.imageQueue.length) {
+        await displayImageFromQueue(newIdx);
+    }
+}
+
+async function displayImageFromQueue(index) {
+    if (!state.imageQueue || index < 0 || index >= state.imageQueue.length) return;
+    state.currentImageIndex = index;
+    const item = state.imageQueue[index];
+    state.currentImageFile = item.file;
+
+    updateImageCarouselUI();
+
+    const img = document.getElementById("image-display-element");
+    const dropzone = document.getElementById("image-dropzone");
+
+    img.src = item.objectUrl;
+    img.classList.remove("hidden");
+    if (dropzone) dropzone.classList.add("hidden");
+
+    // If detections are already cached for this image:
+    if (item.detections) {
+        state.currentImageDetections = item.detections;
+        state.latencyMs = item.latencyMs;
+        updateImageMetaText(item);
+        syncImageCanvas();
+        reFilterImageWorkers();
+        return;
+    }
+
+    // Otherwise, inspect this image via backend
+    showImageProgress(true);
+    const formData = new FormData();
+    formData.append("file", item.file);
+    formData.append("return_base64", "true");
+    formData.append("conf_thresh", state.imageThreshold.toString());
+
+    const t0 = performance.now();
+    try {
+        const res = await fetch(`${API_BASE}/api/detect/image`, {
+            method: "POST",
+            body: formData
+        });
+        const data = await res.json();
+        const latency = performance.now() - t0;
+        showImageProgress(false);
+
+        if (data.success) {
+            item.detections = data;
+            item.latencyMs = latency;
+            state.currentImageDetections = data;
+            state.latencyMs = latency;
+            state.fps = 1000.0 / Math.max(latency, 1.0);
+
+            updateImageMetaText(item);
+
+            img.onload = () => {
+                state.imageZoom = 1.0;
+                state.imageRotation = 0;
+                applyImageTransform();
+                syncImageCanvas();
+                reFilterImageWorkers();
+                const evaluated = getEvaluatedImageWorkers();
+                if (evaluated.some(w => !w.is_compliant)) {
+                    autoLogInspectionIncident("Photo Inspection", evaluated);
+                }
+            };
+            if (img.complete && img.naturalWidth) {
+                syncImageCanvas();
+                reFilterImageWorkers();
+            }
+        } else {
+            alert("Inspection failed for " + item.name + ": " + (data.detail || "Server error"));
+        }
+    } catch (err) {
+        showImageProgress(false);
+        alert("Error connecting to detection backend: " + err.message);
+    }
+}
+
+function updateImageCarouselUI() {
+    const prevBtn = document.getElementById("img-nav-prev");
+    const nextBtn = document.getElementById("img-nav-next");
+    const counterPill = document.getElementById("img-nav-counter");
+    const counterText = document.getElementById("img-counter-text");
+    const botControls = document.getElementById("img-bottom-nav-controls");
+    const botPrev = document.getElementById("btn-bot-prev");
+    const botNext = document.getElementById("btn-bot-next");
+    const botCounter = document.getElementById("bot-counter-text");
+
+    const total = state.imageQueue ? state.imageQueue.length : 0;
+    const cur = state.currentImageIndex;
+
+    if (total > 1) {
+        if (prevBtn) {
+            prevBtn.classList.remove("hidden");
+            prevBtn.disabled = (cur === 0);
+        }
+        if (nextBtn) {
+            nextBtn.classList.remove("hidden");
+            nextBtn.disabled = (cur === total - 1);
+        }
+        if (counterPill) counterPill.classList.remove("hidden");
+        if (counterText) counterText.innerText = `${cur + 1} / ${total}`;
+
+        if (botControls) botControls.classList.remove("hidden");
+        if (botPrev) botPrev.disabled = (cur === 0);
+        if (botNext) botNext.disabled = (cur === total - 1);
+        if (botCounter) botCounter.innerText = `${cur + 1} / ${total}`;
+    } else {
+        if (prevBtn) prevBtn.classList.add("hidden");
+        if (nextBtn) nextBtn.classList.add("hidden");
+        if (counterPill) counterPill.classList.add("hidden");
+        if (botControls) botControls.classList.add("hidden");
+    }
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function updateImageMetaText(item) {
+    const meta = document.getElementById("image-meta-text");
+    if (!meta) return;
+    const total = state.imageQueue ? state.imageQueue.length : 1;
+    const idxStr = total > 1 ? ` (${state.currentImageIndex + 1} of ${total})` : '';
+    const workers = item.detections ? item.detections.total_workers : 0;
+    meta.innerText = `${item.name}${idxStr} • ${workers} Workers Evaluated • ${state.latencyMs.toFixed(1)} ms`;
 }
 
 async function loadImageSample(filename) {
@@ -1284,59 +1449,7 @@ async function loadImageSample(filename) {
 }
 
 async function inspectUploadedImage(file) {
-    state.currentImageFile = file;
-    showImageProgress(true);
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("return_base64", "true");
-    formData.append("conf_thresh", state.imageThreshold.toString());
-
-    const t0 = performance.now();
-    try {
-        const res = await fetch(`${API_BASE}/api/detect/image`, {
-            method: "POST",
-            body: formData
-        });
-        const data = await res.json();
-        state.latencyMs = performance.now() - t0;
-        state.fps = 1000.0 / Math.max(state.latencyMs, 1.0);
-        showImageProgress(false);
-
-        if (data.success) {
-            state.currentImageDetections = data;
-
-            const img = document.getElementById("image-display-element");
-            const dropzone = document.getElementById("image-dropzone");
-
-            try {
-                img.src = URL.createObjectURL(file);
-            } catch (e) {
-                img.src = data.annotated_image_base64;
-            }
-            img.classList.remove("hidden");
-            dropzone.classList.add("hidden");
-
-            document.getElementById("image-meta-text").innerText = `${file.name} • ${data.total_workers} Workers Evaluated • ${state.latencyMs.toFixed(1)} ms`;
-
-            img.onload = () => {
-                state.imageZoom = 1.0;
-                state.imageRotation = 0;
-                applyImageTransform();
-                syncImageCanvas();
-                reFilterImageWorkers();
-                const evaluated = getEvaluatedImageWorkers();
-                if (evaluated.some(w => !w.is_compliant)) {
-                    autoLogInspectionIncident("Photo Inspection", evaluated);
-                }
-            };
-        } else {
-            alert("Inspection failed: " + (data.detail || "Server error"));
-        }
-    } catch (err) {
-        showImageProgress(false);
-        alert("Error connecting to detection backend: " + err.message);
-    }
+    await handleMultipleImageUpload([file]);
 }
 
 function showImageProgress(show) {

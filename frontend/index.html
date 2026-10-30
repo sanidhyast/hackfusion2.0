@@ -418,14 +418,28 @@
                 <!-- Dedicated Image Viewer & Upload -->
                 <section class="image-inspection-panel">
                     <!-- 16:9 Image Viewport Stage (Clean Empty State Until Upload) -->
-                    <div class="image-viewport-stage" id="image-stage-box">
+                    <div class="image-viewport-stage" id="image-stage-box" style="position:relative;">
                         <div class="viewer-progress-bar" id="image-progress-bar"></div>
 
                         <!-- Dropzone Empty State -->
                         <div class="image-dropzone-box" id="image-dropzone" onclick="document.getElementById('hidden-image-upload').click()">
                             <i data-lucide="image-plus" style="width:40px; height:40px; color:var(--text-disabled); margin-bottom:10px;"></i>
-                            <p style="font-size:14px; font-weight:600; color:var(--text-primary);">Drag & Drop Industrial Photo Here</p>
-                            <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">or click to browse from local computer</p>
+                            <p style="font-size:14px; font-weight:600; color:var(--text-primary);">Drag & Drop Industrial Photos Here</p>
+                            <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">Select one or multiple images to inspect</p>
+                        </div>
+
+                        <!-- Floating Carousel Navigation Arrows (Visible When Multiple Images Loaded) -->
+                        <button id="img-nav-prev" class="img-carousel-nav-btn prev hidden" onclick="navigateImage(-1)" title="Previous Image (Left Arrow)">
+                            <i data-lucide="chevron-left" style="width:22px; height:22px;"></i>
+                        </button>
+                        <button id="img-nav-next" class="img-carousel-nav-btn next hidden" onclick="navigateImage(1)" title="Next Image (Right Arrow)">
+                            <i data-lucide="chevron-right" style="width:22px; height:22px;"></i>
+                        </button>
+
+                        <!-- Floating Carousel Image Counter Pill -->
+                        <div id="img-nav-counter" class="img-carousel-counter-pill hidden">
+                            <i data-lucide="images" style="width:13px; height:13px; color:var(--accent);"></i>
+                            <span id="img-counter-text">1 / 1</span>
                         </div>
 
                         <!-- Rendered Image & Overlay Canvas -->
@@ -435,8 +449,21 @@
 
                     <!-- Bottom Image Controls Bar: Overlays, Zoom, Rotate, and Status -->
                     <div class="cctv-bar image-bottom-bar">
-                        <div style="display:flex; align-items:center; gap:16px; font-size:12px; color:var(--text-secondary);">
-                            <span id="image-meta-text" onclick="document.getElementById('hidden-image-upload').click()" style="cursor:pointer;" title="Click to browse or change photo">No photo loaded. Click anywhere in viewport to upload.</span>
+                        <div style="display:flex; align-items:center; gap:16px; font-size:12px; color:var(--text-secondary); flex-wrap:wrap;">
+                            <span id="image-meta-text" onclick="document.getElementById('hidden-image-upload').click()" style="cursor:pointer;" title="Click to browse or add photos">No photo loaded. Click anywhere in viewport to upload.</span>
+                            
+                            <!-- Inline Navigation Controls -->
+                            <div id="img-bottom-nav-controls" class="hidden" style="display:inline-flex; align-items:center; gap:6px;">
+                                <span style="color:var(--border-color);">|</span>
+                                <button class="btn-outlined" style="padding:2px 8px; font-size:11px; display:inline-flex; align-items:center; gap:4px;" onclick="navigateImage(-1)" id="btn-bot-prev" title="Previous Image">
+                                    <i data-lucide="chevron-left" style="width:12px; height:12px;"></i> Prev
+                                </button>
+                                <span id="bot-counter-text" style="font-size:11px; font-weight:700; color:var(--text-primary); min-width:32px; text-align:center;">1 / 1</span>
+                                <button class="btn-outlined" style="padding:2px 8px; font-size:11px; display:inline-flex; align-items:center; gap:4px;" onclick="navigateImage(1)" id="btn-bot-next" title="Next Image">
+                                    Next <i data-lucide="chevron-right" style="width:12px; height:12px;"></i>
+                                </button>
+                            </div>
+
                             <span style="color:var(--border-color);">|</span>
                             <div class="legend-chips-row" style="font-size:11px;">
                                 <span><strong style="color:#FFFFFF;">White:</strong> Compliant</span>
@@ -869,13 +896,13 @@
         </div>
 
         <!-- Hidden Native File Inputs -->
-        <input type="file" id="hidden-image-upload" accept="image/*" class="hidden">
+        <input type="file" id="hidden-image-upload" accept="image/*" multiple class="hidden">
         <input type="file" id="hidden-video-upload" accept="video/*" class="hidden">
 
     </main>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.3"></script>
+    <script src="app.js?v=2.4"></script>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             if (window.lucide) window.lucide.createIcons();
