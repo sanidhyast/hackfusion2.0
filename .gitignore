@@ -1,0 +1,35 @@
+# Python byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Temporary frame uploads & processed detection caches
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/processed/*
+!backend/processed/.gitkeep
+
+# Checkpoints and Heavy Weights (exceed GitHub 100MB limit)
+*.ckpt
+*.pth
+*.pt
+rfdetr_runs/
+rfdetr_10ep_runs/
+rtdetr_runs/
+workdir/rfdetr_runs/
+workdir/rfdetr_10ep_runs/
+workdir/rtdetr_runs/
+workdir/test_output/
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

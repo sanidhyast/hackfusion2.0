@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPE Compliance AI Platform - Enterprise Safety Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Lucide Line Icons (16-20px) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <!-- 1. Top Bar -->
+    <header class="top-bar">
+        <div class="brand-section">
+            <div class="brand-logo-mark">P</div>
+            <div class="brand-title-wrap">
+                <span class="brand-name">PPE Compliance AI Platform</span>
+                <span class="model-tag">RF-DETR-S (DINOv2) - 10-Epoch EMA</span>
+            </div>
+        </div>
+
+        <div class="system-status-area">
+            <div class="status-metric-group">
+                <i data-lucide="cpu" style="width:16px; height:16px;"></i>
+                <span>GPU:</span>
+                <strong id="top-gpu-name">RTX 3050</strong>
+            </div>
+
+            <div class="status-metric-group">
+                <i data-lucide="hard-drive" style="width:16px; height:16px;"></i>
+                <span>VRAM:</span>
+                <strong id="top-vram">308 MB / 6144 MB</strong>
+            </div>
+
+            <div class="status-metric-group">
+                <i data-lucide="activity" style="width:16px; height:16px;"></i>
+                <span>FPS:</span>
+                <strong id="top-fps">0.0 FPS</strong>
+            </div>
+
+            <div class="status-metric-group">
+                <i data-lucide="clock" style="width:16px; height:16px;"></i>
+                <span>Latency:</span>
+                <strong id="top-latency">0.0 ms</strong>
+            </div>
+
+            <div class="live-indicator" id="top-live-badge">
+                <div class="live-dot"></div>
+                <span id="top-live-text">STANDBY</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 2. Navigation Tabs Bar (Clean Separation) -->
+    <nav class="tabs-nav-bar">
+        <button class="nav-tab-btn active" data-tab="cctv">
+            <i data-lucide="layout-grid" style="width:16px; height:16px;"></i>
+            CCTV Live Monitoring
+        </button>
+        <button class="nav-tab-btn" data-tab="image">
+            <i data-lucide="image" style="width:16px; height:16px;"></i>
+            Image Inspection
+        </button>
+        <button class="nav-tab-btn" data-tab="video">
+            <i data-lucide="film" style="width:16px; height:16px;"></i>
+            Video File Audit
+        </button>
+        <button class="nav-tab-btn" data-tab="audit">
+            <i data-lucide="clipboard-list" style="width:16px; height:16px;"></i>
+            Compliance Audit and Export
+        </button>
+    </nav>
+
+    <!-- Main Dashboard Container -->
+    <main class="dashboard-container">
+
+        <!-- Slim Crimson Alert Banner (Hidden when 0 violations) -->
+        <div id="violation-alert-banner" class="alert-banner hidden">
+            <div class="alert-content">
+                <i data-lucide="alert-triangle" style="width:18px; height:18px;"></i>
+                <span id="alert-banner-text">1 violation detected</span>
+            </div>
+            <button class="alert-action-btn" onclick="scrollToVerdicts()">Review</button>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- TAB 1: CCTV LIVE MONITORING (4-Screen Quad Console)           -->
+        <!-- ============================================================= -->
+        <div id="cctv-view" class="workspace-grid tab-content-view">
+            <!-- Left Side: KPI Row Directly Above 4 CCTV Screens -->
+            <div class="workspace-main-column">
+                <section class="kpi-row">
+                    <div class="kpi-card" id="kpi-total-card">
+                        <span class="kpi-label">Total Workers</span>
+                        <span class="kpi-numeral" id="kpi-total-val">0</span>
+                        <span class="kpi-subline" id="kpi-total-sub">No active streams connected</span>
+                    </div>
+
+                    <div class="kpi-card" id="kpi-compliant-card">
+                        <span class="kpi-label">Compliant Workers</span>
+                        <span class="kpi-numeral" id="kpi-compliant-val">0</span>
+                        <span class="kpi-subline" id="kpi-compliant-sub">0 of 0 workers compliant</span>
+                    </div>
+
+                    <div class="kpi-card" id="kpi-violations-card">
+                        <span class="kpi-label">Violations Flagged</span>
+                        <span class="kpi-numeral" id="kpi-violations-val">0</span>
+                        <span class="kpi-subline" id="kpi-violations-sub">0 active safety breaches</span>
+                    </div>
+
+                    <div class="kpi-card" id="kpi-rate-card">
+                        <span class="kpi-label">Compliance Rate</span>
+                        <span class="kpi-numeral" id="kpi-rate-val">100%</span>
+                        <span class="kpi-subline" id="kpi-rate-sub">Site safety threshold: 90%</span>
+                    </div>
+                </section>
+
+                <section class="viewer-panel">
+                    <!-- 4 Screens Grid Container (Starts Clean with No Dummy Images) -->
+                    <div class="cctv-quad-container" id="cctv-quad-grid">
+                    
+                    <!-- Tile 1: CAM-01 -->
+                    <div class="cctv-tile" id="cam-tile-1" ondblclick="toggleQuadFocus(1)" title="Double-click to expand focus screen | Click gear to configure">
+                        <div class="cctv-tile-header">
+                            <span class="cctv-tile-title" id="title-cam-1">
+                                <i data-lucide="video" style="width:13px; height:13px;"></i>
+                                CAM-01 (Zone A - Main Scaffold)
+                            </span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="cctv-tile-meta" id="meta-cam-1">Disconnected</span>
+                                <button class="cctv-tile-config-btn" title="Configure Room & Rules" onclick="event.stopPropagation(); openCameraDeviceModal(1)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="cctv-tile-viewport">
+                            <div class="cctv-empty-placeholder" id="placeholder-cam-1">
+                                <i data-lucide="camera-off" style="width:32px; height:32px;"></i>
+                                <span style="font-weight:600; color:var(--text-primary);">NO CAMERA CONNECTED</span>
+                                <button class="cctv-empty-btn" onclick="event.stopPropagation(); openCameraDeviceModal(1)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                    Select Camera Device
+                                </button>
+                            </div>
+                            <video id="video-cam-1" autoplay playsinline muted class="hidden"></video>
+                            <canvas class="cctv-tile-canvas" id="canvas-cam-1"></canvas>
+                        </div>
+                        <div class="cctv-tile-footer">
+                            <span id="footer-cam-1-workers" style="color:var(--text-secondary);">Workers: 0</span>
+                            <span id="footer-cam-1-status" class="status-tag-chip standby">STANDBY</span>
+                        </div>
+                    </div>
+
+                    <!-- Tile 2: CAM-02 -->
+                    <div class="cctv-tile" id="cam-tile-2" ondblclick="toggleQuadFocus(2)" title="Double-click to expand focus screen | Click gear to configure">
+                        <div class="cctv-tile-header">
+                            <span class="cctv-tile-title" id="title-cam-2">
+                                <i data-lucide="video" style="width:13px; height:13px;"></i>
+                                CAM-02 (Zone B - Material Unloading)
+                            </span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="cctv-tile-meta" id="meta-cam-2">Disconnected</span>
+                                <button class="cctv-tile-config-btn" title="Configure Room & Rules" onclick="event.stopPropagation(); openCameraDeviceModal(2)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="cctv-tile-viewport">
+                            <div class="cctv-empty-placeholder" id="placeholder-cam-2">
+                                <i data-lucide="camera-off" style="width:32px; height:32px;"></i>
+                                <span style="font-weight:600; color:var(--text-primary);">NO CAMERA CONNECTED</span>
+                                <button class="cctv-empty-btn" onclick="event.stopPropagation(); openCameraDeviceModal(2)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                    Select Camera Device
+                                </button>
+                            </div>
+                            <video id="video-cam-2" autoplay playsinline muted class="hidden"></video>
+                            <canvas class="cctv-tile-canvas" id="canvas-cam-2"></canvas>
+                        </div>
+                        <div class="cctv-tile-footer">
+                            <span id="footer-cam-2-workers" style="color:var(--text-secondary);">Workers: 0</span>
+                            <span id="footer-cam-2-status" class="status-tag-chip standby">STANDBY</span>
+                        </div>
+                    </div>
+
+                    <!-- Tile 3: CAM-03 -->
+                    <div class="cctv-tile" id="cam-tile-3" ondblclick="toggleQuadFocus(3)" title="Double-click to expand focus screen | Click gear to configure">
+                        <div class="cctv-tile-header">
+                            <span class="cctv-tile-title" id="title-cam-3">
+                                <i data-lucide="video" style="width:13px; height:13px;"></i>
+                                CAM-03 (Zone C - Tower Crane Base)
+                            </span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="cctv-tile-meta" id="meta-cam-3">Disconnected</span>
+                                <button class="cctv-tile-config-btn" title="Configure Room & Rules" onclick="event.stopPropagation(); openCameraDeviceModal(3)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="cctv-tile-viewport">
+                            <div class="cctv-empty-placeholder" id="placeholder-cam-3">
+                                <i data-lucide="camera-off" style="width:32px; height:32px;"></i>
+                                <span style="font-weight:600; color:var(--text-primary);">NO CAMERA CONNECTED</span>
+                                <button class="cctv-empty-btn" onclick="event.stopPropagation(); openCameraDeviceModal(3)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                    Select Camera Device
+                                </button>
+                            </div>
+                            <video id="video-cam-3" autoplay playsinline muted class="hidden"></video>
+                            <canvas class="cctv-tile-canvas" id="canvas-cam-3"></canvas>
+                        </div>
+                        <div class="cctv-tile-footer">
+                            <span id="footer-cam-3-workers" style="color:var(--text-secondary);">Workers: 0</span>
+                            <span id="footer-cam-3-status" class="status-tag-chip standby">STANDBY</span>
+                        </div>
+                    </div>
+
+                    <!-- Tile 4: CAM-04 -->
+                    <div class="cctv-tile" id="cam-tile-4" ondblclick="toggleQuadFocus(4)" title="Double-click to expand focus screen | Click gear to configure">
+                        <div class="cctv-tile-header">
+                            <span class="cctv-tile-title" id="title-cam-4">
+                                <i data-lucide="video" style="width:13px; height:13px;"></i>
+                                CAM-04 (Gate 2 - Personnel Entry)
+                            </span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                <span class="cctv-tile-meta" id="meta-cam-4">Disconnected</span>
+                                <button class="cctv-tile-config-btn" title="Configure Room & Rules" onclick="event.stopPropagation(); openCameraDeviceModal(4)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="cctv-tile-viewport">
+                            <div class="cctv-empty-placeholder" id="placeholder-cam-4">
+                                <i data-lucide="camera-off" style="width:32px; height:32px;"></i>
+                                <span style="font-weight:600; color:var(--text-primary);">NO CAMERA CONNECTED</span>
+                                <button class="cctv-empty-btn" onclick="event.stopPropagation(); openCameraDeviceModal(4)">
+                                    <i data-lucide="settings" style="width:12px; height:12px;"></i>
+                                    Select Camera Device
+                                </button>
+                            </div>
+                            <video id="video-cam-4" autoplay playsinline muted class="hidden"></video>
+                            <canvas class="cctv-tile-canvas" id="canvas-cam-4"></canvas>
+                        </div>
+                        <div class="cctv-tile-footer">
+                            <span id="footer-cam-4-workers" style="color:var(--text-secondary);">Workers: 0</span>
+                            <span id="footer-cam-4-status" class="status-tag-chip standby">STANDBY</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- CCTV Control Bar -->
+                <div class="cctv-bar">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <button class="btn-primary" style="padding:6px 12px; font-size:12px;" onclick="openCameraDeviceModal(1)">
+                            <i data-lucide="video" style="width:14px; height:14px;"></i>
+                            Select & Connect Camera Device
+                        </button>
+                        <button class="btn-outlined" style="padding:6px 12px; font-size:12px;" onclick="disconnectAllCameras()">
+                            <i data-lucide="power" style="width:14px; height:14px;"></i>
+                            Disconnect All
+                        </button>
+                        <button class="btn-outlined" id="cctv-grid-mode-btn" style="padding:6px 12px; font-size:12px;" onclick="toggleQuadFocus(null)">
+                            <i data-lucide="grid" style="width:14px; height:14px;"></i>
+                            2x2 Grid
+                        </button>
+                    </div>
+
+                    <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-secondary);">
+                        <span id="cctv-active-cams-count" style="font-weight:500;">0 of 4 Cameras Active</span>
+                        <span style="color:var(--border-color);">|</span>
+                        <span>Click any camera to focus or configure</span>
+                        <button class="icon-btn" title="Toggle Fullscreen" onclick="toggleQuadFullscreen()">
+                            <i data-lucide="maximize" style="width:16px; height:16px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Right Side: CCTV Alerts & Active Camera Verdicts (Full Top-to-Bottom Chat Sidebar) -->
+        <aside class="controls-panel">
+                <div class="control-section">
+                    <div class="section-header">
+                        <span class="section-title">Active Site Violation Rules</span>
+                        <div>
+                            <span class="header-action-link" onclick="setViolationRules(true)">Select all</span>
+                            <span style="color:var(--border-color); margin: 0 4px;">|</span>
+                            <span class="header-action-link" onclick="setViolationRules(false)">Clear</span>
+                        </div>
+                    </div>
+                    <div class="violation-types-grid">
+                        <button class="violation-toggle-btn selected" data-rule="helmet" onclick="toggleRule(this)">
+                            <i data-lucide="hard-hat" style="width:16px; height:16px;"></i>
+                            No Helmet
+                        </button>
+                        <button class="violation-toggle-btn selected" data-rule="vest" onclick="toggleRule(this)">
+                            <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
+                            No Safety Vest
+                        </button>
+                        <button class="violation-toggle-btn selected" data-rule="helmet_arm" onclick="toggleRule(this)">
+                            <i data-lucide="shield-alert" style="width:16px; height:16px;"></i>
+                            Helmet Under Arm
+                        </button>
+                        <button class="violation-toggle-btn" data-rule="gloves" onclick="toggleRule(this)">
+                            <i data-lucide="hand" style="width:16px; height:16px;"></i>
+                            No Gloves
+                        </button>
+                        <button class="violation-toggle-btn" data-rule="boots" onclick="toggleRule(this)">
+                            <i data-lucide="footprints" style="width:16px; height:16px;"></i>
+                            No Safety Boots
+                        </button>
+                        <button class="violation-toggle-btn" data-rule="goggles" onclick="toggleRule(this)">
+                            <i data-lucide="glasses" style="width:16px; height:16px;"></i>
+                            No Eye Protection
+                        </button>
+                        <button class="violation-toggle-btn" data-rule="other" onclick="toggleRule(this)">
+                            <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
+                            Other / Loose PPE
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="confidence-control-box">
+                        <div class="confidence-header">
+                            <span>Detection Sensitivity</span>
+                            <div class="confidence-input-wrap">
+                                <input type="number" id="cctv-conf-num" class="confidence-num-input" min="10" max="95" value="35">
+                                <span style="font-size:12px; color:var(--text-secondary);">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="cctv-conf-slider" class="confidence-slider" min="0.10" max="0.95" step="0.05" value="0.35">
+                    </div>
+                </div>
+
+                <div class="control-section" style="flex:1; display:flex; flex-direction:column; min-height: 220px;">
+                    <div class="section-header">
+                        <span class="section-title">Live Camera Verdicts</span>
+                        <span id="cctv-verdicts-badge" style="font-size:12px; color:var(--text-secondary); font-weight:600;">0 Active Feeds</span>
+                    </div>
+                    <div class="verdicts-list" id="cctv-verdicts-container">
+                        <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
+                            No cameras connected. Click on any screen above to select a camera device.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-action-buttons">
+                    <button class="btn-primary" onclick="addToAuditReport('CCTV')">
+                        <i data-lucide="file-plus" style="width:16px; height:16px;"></i>
+                        Log CCTV Breach to Audit
+                    </button>
+                    <div class="action-row-split">
+                        <button class="btn-outlined" onclick="dismissFalsePositive()">
+                            <i data-lucide="x-circle" style="width:16px; height:16px;"></i>
+                            Dismiss False Alarm
+                        </button>
+                        <button class="btn-outlined" onclick="exportQuickSummary()">
+                            <i data-lucide="download" style="width:16px; height:16px;"></i>
+                            Export Snapshot
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- TAB 2: IMAGE INSPECTION (Dedicated Photo Analysis Console)    -->
+        <!-- ============================================================= -->
+        <div id="image-view" class="workspace-grid tab-content-view hidden">
+            <!-- Left Side: KPI Row Directly Above Image Inspection Stage -->
+            <div class="workspace-main-column">
+                <section class="kpi-row">
+                    <div class="kpi-card" id="img-kpi-total-card">
+                        <span class="kpi-label">Total Workers</span>
+                        <span class="kpi-numeral" id="img-kpi-total-val">0</span>
+                        <span class="kpi-subline" id="img-kpi-total-sub">No image loaded</span>
+                    </div>
+
+                    <div class="kpi-card" id="img-kpi-compliant-card">
+                        <span class="kpi-label">Compliant Workers</span>
+                        <span class="kpi-numeral" id="img-kpi-compliant-val">0</span>
+                        <span class="kpi-subline" id="img-kpi-compliant-sub">0 of 0 workers compliant</span>
+                    </div>
+
+                    <div class="kpi-card" id="img-kpi-violations-card">
+                        <span class="kpi-label">Violations Flagged</span>
+                        <span class="kpi-numeral" id="img-kpi-violations-val">0</span>
+                        <span class="kpi-subline" id="img-kpi-violations-sub">0 safety breaches flagged</span>
+                    </div>
+
+                    <div class="kpi-card" id="img-kpi-rate-card">
+                        <span class="kpi-label">Compliance Rate</span>
+                        <span class="kpi-numeral" id="img-kpi-rate-val">100%</span>
+                        <span class="kpi-subline" id="img-kpi-rate-sub">Site safety threshold: 90%</span>
+                    </div>
+                </section>
+
+                <!-- Dedicated Image Viewer & Upload -->
+                <section class="image-inspection-panel">
+                    <!-- 16:9 Image Viewport Stage (Clean Empty State Until Upload) -->
+                    <div class="image-viewport-stage" id="image-stage-box">
+                        <div class="viewer-progress-bar" id="image-progress-bar"></div>
+
+                        <!-- Dropzone Empty State -->
+                        <div class="image-dropzone-box" id="image-dropzone" onclick="document.getElementById('hidden-image-upload').click()">
+                            <i data-lucide="image-plus" style="width:40px; height:40px; color:var(--text-disabled); margin-bottom:10px;"></i>
+                            <p style="font-size:14px; font-weight:600; color:var(--text-primary);">Drag & Drop Industrial Photo Here</p>
+                            <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">or click to browse from local computer</p>
+                        </div>
+
+                        <!-- Rendered Image & Overlay Canvas -->
+                        <img id="image-display-element" class="hidden" alt="Inspected Photo">
+                        <canvas id="image-overlay-canvas" class="overlay-canvas"></canvas>
+                    </div>
+
+                    <!-- Bottom Image Controls Bar: Overlays, Zoom, Rotate, and Status -->
+                    <div class="cctv-bar image-bottom-bar">
+                        <div style="display:flex; align-items:center; gap:16px; font-size:12px; color:var(--text-secondary);">
+                            <span id="image-meta-text" onclick="document.getElementById('hidden-image-upload').click()" style="cursor:pointer;" title="Click to browse or change photo">No photo loaded. Click anywhere in viewport to upload.</span>
+                            <span style="color:var(--border-color);">|</span>
+                            <div class="legend-chips-row" style="font-size:11px;">
+                                <span><strong style="color:#FFFFFF;">White:</strong> Compliant</span>
+                                <span style="margin-left:8px;"><strong style="color:var(--accent);">Crimson:</strong> Violation</span>
+                                <span style="margin-left:8px;"><strong style="color:#737373;">Dashed:</strong> Anatomical Zone</span>
+                            </div>
+                        </div>
+
+                        <div class="image-toolbar-right">
+                            <div class="overlay-toggles">
+                                <span style="font-size:12px; font-weight:500;">Overlays:</span>
+                                <button class="toggle-chip active" id="img-toggle-boxes" onclick="toggleImageOverlay('boxes')">Boxes</button>
+                                <button class="toggle-chip active" id="img-toggle-labels" onclick="toggleImageOverlay('labels')">Labels</button>
+                                <button class="toggle-chip active" id="img-toggle-zones" onclick="toggleImageOverlay('zones')">PPE Zones</button>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:6px; margin-left:6px;">
+                                <button class="icon-btn" title="Zoom In" onclick="adjustImageZoom(0.1)">
+                                    <i data-lucide="zoom-in" style="width:16px; height:16px;"></i>
+                                </button>
+                                <button class="icon-btn" title="Zoom Out" onclick="adjustImageZoom(-0.1)">
+                                    <i data-lucide="zoom-out" style="width:16px; height:16px;"></i>
+                                </button>
+                                <button class="icon-btn" title="Rotate 90° Clockwise" onclick="rotateImage(90)">
+                                    <i data-lucide="rotate-cw" style="width:16px; height:16px;"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+        <!-- Right Side: Inspection Rules & Verdicts (Full Top-to-Bottom Chat Sidebar) -->
+        <aside class="controls-panel">
+                <div class="control-section">
+                    <div class="section-header">
+                        <span class="section-title">Required PPE Rules</span>
+                        <div>
+                            <span class="header-action-link" onclick="setImageRules(true)">Select all</span>
+                            <span style="color:var(--border-color); margin: 0 4px;">|</span>
+                            <span class="header-action-link" onclick="setImageRules(false)">Clear</span>
+                        </div>
+                    </div>
+                    <div class="violation-types-grid">
+                        <button class="violation-toggle-btn selected" data-imrule="helmet" onclick="toggleImageRule(this)">
+                            <i data-lucide="hard-hat" style="width:16px; height:16px;"></i>
+                            No Helmet
+                        </button>
+                        <button class="violation-toggle-btn selected" data-imrule="vest" onclick="toggleImageRule(this)">
+                            <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
+                            No Safety Vest
+                        </button>
+                        <button class="violation-toggle-btn selected" data-imrule="helmet_arm" onclick="toggleImageRule(this)">
+                            <i data-lucide="shield-alert" style="width:16px; height:16px;"></i>
+                            Helmet Under Arm
+                        </button>
+                        <button class="violation-toggle-btn" data-imrule="gloves" onclick="toggleImageRule(this)">
+                            <i data-lucide="hand" style="width:16px; height:16px;"></i>
+                            No Gloves
+                        </button>
+                        <button class="violation-toggle-btn" data-imrule="boots" onclick="toggleImageRule(this)">
+                            <i data-lucide="footprints" style="width:16px; height:16px;"></i>
+                            No Safety Boots
+                        </button>
+                        <button class="violation-toggle-btn" data-imrule="goggles" onclick="toggleImageRule(this)">
+                            <i data-lucide="glasses" style="width:16px; height:16px;"></i>
+                            No Eye Protection
+                        </button>
+                        <button class="violation-toggle-btn" data-imrule="other" onclick="toggleImageRule(this)">
+                            <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
+                            Other / Loose PPE
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="confidence-control-box">
+                        <div class="confidence-header">
+                            <span>Confidence Threshold</span>
+                            <div class="confidence-input-wrap">
+                                <input type="number" id="image-conf-num" class="confidence-num-input" min="10" max="95" value="35">
+                                <span style="font-size:12px; color:var(--text-secondary);">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="image-conf-slider" class="confidence-slider" min="0.10" max="0.95" step="0.05" value="0.35">
+                    </div>
+                </div>
+
+                <div class="control-section" style="flex:1; display:flex; flex-direction:column; min-height: 220px;">
+                    <div class="section-header">
+                        <span class="section-title">Per-Worker Verdicts</span>
+                        <span id="image-verdicts-badge" style="font-size:12px; color:var(--text-secondary); font-weight:600;">0 Workers</span>
+                    </div>
+                    <div class="verdicts-list" id="image-verdicts-container">
+                        <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
+                            Upload a photo or select a test sample to evaluate workers.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-action-buttons">
+                    <button class="btn-primary" onclick="addToAuditReport('Image')">
+                        <i data-lucide="file-plus" style="width:16px; height:16px;"></i>
+                        Add to Audit Report
+                    </button>
+                    <div class="action-row-split">
+                        <button class="btn-outlined" onclick="dismissFalsePositive('image')">
+                            <i data-lucide="x-circle" style="width:16px; height:16px;"></i>
+                            Dismiss False Alarm
+                        </button>
+                        <button class="btn-outlined" onclick="exportQuickSummary('image')">
+                            <i data-lucide="download" style="width:16px; height:16px;"></i>
+                            Export JSON
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- TAB 3: VIDEO FILE AUDIT (Forensic Video Analysis Console)     -->
+        <!-- ============================================================= -->
+        <div id="video-view" class="workspace-grid tab-content-view hidden">
+            <!-- Left Side: KPI Row Directly Above Video Viewport Stage -->
+            <div class="workspace-main-column">
+                <section class="kpi-row">
+                    <div class="kpi-card" id="vid-kpi-frames-card">
+                        <span class="kpi-label">Total Frames Analyzed</span>
+                        <span class="kpi-numeral" id="vid-kpi-frames-val">0</span>
+                        <span class="kpi-subline" id="vid-kpi-frames-sub">No video loaded</span>
+                    </div>
+
+                    <div class="kpi-card" id="vid-kpi-workers-card">
+                        <span class="kpi-label">Peak Workers Detected</span>
+                        <span class="kpi-numeral" id="vid-kpi-workers-val">0</span>
+                        <span class="kpi-subline" id="vid-kpi-workers-sub">0 workers in stream</span>
+                    </div>
+
+                    <div class="kpi-card" id="vid-kpi-violations-card">
+                        <span class="kpi-label">Violations Spotted</span>
+                        <span class="kpi-numeral" id="vid-kpi-violations-val">0</span>
+                        <span class="kpi-subline" id="vid-kpi-violations-sub">0 safety breaches flagged</span>
+                    </div>
+
+                    <div class="kpi-card" id="vid-kpi-rate-card">
+                        <span class="kpi-label">Compliance Rate</span>
+                        <span class="kpi-numeral" id="vid-kpi-rate-val">100%</span>
+                        <span class="kpi-subline" id="vid-kpi-rate-sub">Site safety threshold: 90%</span>
+                    </div>
+                </section>
+
+                <!-- Dedicated Video Inspection Panel -->
+                <section class="image-inspection-panel">
+                    <!-- 16:9 Video Viewport Stage -->
+                    <div class="image-viewport-stage" id="video-stage-box">
+                        <div class="viewer-progress-bar" id="video-progress-bar"></div>
+
+                        <!-- Dropzone Empty State -->
+                        <div class="image-dropzone-box" id="video-dropzone" onclick="document.getElementById('hidden-video-upload').click()">
+                            <i data-lucide="film" style="width:40px; height:40px; color:var(--text-disabled); margin-bottom:10px;"></i>
+                            <p style="font-size:14px; font-weight:600; color:var(--text-primary);">Drag & Drop Industrial Video (MP4 / AVI) Here</p>
+                            <p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">or click to browse from local computer</p>
+                        </div>
+
+                        <!-- Native HTML5 Video Element -->
+                        <video id="video-display-element" controls playsinline class="hidden" style="width:100%; height:100%; object-fit:contain; background:#000;"></video>
+                    </div>
+
+                    <!-- Bottom Video Controls Bar -->
+                    <div class="cctv-bar image-bottom-bar">
+                        <div style="display:flex; align-items:center; gap:16px; font-size:12px; color:var(--text-secondary);">
+                            <span id="video-meta-text" onclick="document.getElementById('hidden-video-upload').click()" style="cursor:pointer;" title="Click to browse or change video">No video loaded. Click anywhere in viewport to upload.</span>
+                            <span style="color:var(--border-color);">|</span>
+                            <div class="legend-chips-row" style="font-size:11px;">
+                                <span><strong style="color:#FFFFFF;">White:</strong> Compliant</span>
+                                <span style="margin-left:8px;"><strong style="color:var(--accent);">Crimson:</strong> Violation</span>
+                            </div>
+                        </div>
+
+                        <div class="image-toolbar-right">
+                            <button class="btn-outlined" style="padding:4px 10px; font-size:11px;" onclick="document.getElementById('hidden-video-upload').click()">
+                                <i data-lucide="upload" style="width:13px; height:13px;"></i>
+                                Change Video
+                            </button>
+                            <button class="icon-btn" title="Toggle Fullscreen" onclick="toggleVideoFullscreen()">
+                                <i data-lucide="maximize" style="width:16px; height:16px;"></i>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Side: Video Inspection Rules & Incident Timeline (Full Top-to-Bottom Chat Sidebar) -->
+            <aside class="controls-panel">
+                <div class="control-section">
+                    <div class="section-header">
+                        <span class="section-title">Required PPE Rules</span>
+                        <div>
+                            <span class="header-action-link" onclick="setVideoRules(true)">Select all</span>
+                            <span style="color:var(--border-color); margin: 0 4px;">|</span>
+                            <span class="header-action-link" onclick="setVideoRules(false)">Clear</span>
+                        </div>
+                    </div>
+                    <div class="violation-types-grid">
+                        <button class="violation-toggle-btn selected" data-vidrule="helmet" onclick="toggleVideoRule(this)">
+                            <i data-lucide="hard-hat" style="width:16px; height:16px;"></i>
+                            No Helmet
+                        </button>
+                        <button class="violation-toggle-btn selected" data-vidrule="vest" onclick="toggleVideoRule(this)">
+                            <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
+                            No Safety Vest
+                        </button>
+                        <button class="violation-toggle-btn selected" data-vidrule="helmet_arm" onclick="toggleVideoRule(this)">
+                            <i data-lucide="shield-alert" style="width:16px; height:16px;"></i>
+                            Helmet Under Arm
+                        </button>
+                        <button class="violation-toggle-btn" data-vidrule="gloves" onclick="toggleVideoRule(this)">
+                            <i data-lucide="hand" style="width:16px; height:16px;"></i>
+                            No Gloves
+                        </button>
+                        <button class="violation-toggle-btn" data-vidrule="boots" onclick="toggleVideoRule(this)">
+                            <i data-lucide="footprints" style="width:16px; height:16px;"></i>
+                            No Safety Boots
+                        </button>
+                        <button class="violation-toggle-btn" data-vidrule="goggles" onclick="toggleVideoRule(this)">
+                            <i data-lucide="glasses" style="width:16px; height:16px;"></i>
+                            No Eye Protection
+                        </button>
+                        <button class="violation-toggle-btn" data-vidrule="other" onclick="toggleVideoRule(this)">
+                            <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
+                            Other / Loose PPE
+                        </button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <div class="confidence-control-box">
+                        <div class="confidence-header">
+                            <span>Confidence Threshold</span>
+                            <div class="confidence-input-wrap">
+                                <input type="number" id="video-conf-num" class="confidence-num-input" min="10" max="95" value="35">
+                                <span style="font-size:12px; color:var(--text-secondary);">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="video-conf-slider" class="confidence-slider" min="0.10" max="0.95" step="0.05" value="0.35">
+                    </div>
+                </div>
+
+                <div class="control-section" style="flex:1; display:flex; flex-direction:column; min-height: 220px;">
+                    <div class="section-header">
+                        <span class="section-title">Video Timeline Incidents</span>
+                        <span id="video-verdicts-badge" style="font-size:12px; color:var(--text-secondary); font-weight:600;">0 Incidents</span>
+                    </div>
+                    <div class="verdicts-list" id="video-verdicts-container">
+                        <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
+                            Upload a video to audit compliance across frames.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-action-buttons">
+                    <button class="btn-primary" onclick="addToAuditReport('Video')">
+                        <i data-lucide="file-plus" style="width:16px; height:16px;"></i>
+                        Log Video Breach to Audit
+                    </button>
+                    <div class="action-row-split">
+                        <button class="btn-outlined" onclick="dismissFalsePositive('video')">
+                            <i data-lucide="x-circle" style="width:16px; height:16px;"></i>
+                            Dismiss False Alarm
+                        </button>
+                        <button class="btn-outlined" onclick="exportQuickSummary('video')">
+                            <i data-lucide="download" style="width:16px; height:16px;"></i>
+                            Export JSON
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- TAB 4: COMPLIANCE AUDIT AND EXPORT VIEW                       -->
+        <!-- ============================================================= -->
+        <section id="audit-view" class="audit-view-panel tab-content-view hidden">
+            <div class="section-header">
+                <div>
+                    <span class="section-title" style="font-size:15px;">Safety Compliance Audit Log</span>
+                    <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
+                        Enterprise incident tracking with human review records and timestamps.
+                    </p>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn-outlined" onclick="exportAuditCSV()">
+                        <i data-lucide="file-spreadsheet" style="width:16px; height:16px;"></i>
+                        Export CSV
+                    </button>
+                    <button class="btn-outlined" onclick="exportAuditJSON()">
+                        <i data-lucide="file-code" style="width:16px; height:16px;"></i>
+                        Export JSON
+                    </button>
+                </div>
+            </div>
+
+            <table class="audit-table">
+                <thead>
+                    <tr>
+                        <th>Incident ID</th>
+                        <th style="width:70px;">Proof</th>
+                        <th>Timestamp</th>
+                        <th>Source / Room</th>
+                        <th>Workers</th>
+                        <th>Compliant</th>
+                        <th>Violations</th>
+                        <th>Verdict & Missing Equipment</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="audit-table-body">
+                    <tr>
+                        <td colspan="9" style="text-align:center; color:var(--text-disabled); padding:32px;">
+                            No audit log incidents recorded yet. Perform inspections in CCTV, Image, or Video tabs.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Dynamic Camera Connection Modal with Live Video Preview -->
+        <div id="camera-modal" class="modal-backdrop hidden">
+            <div class="modal-card">
+                <div class="modal-title">
+                    <i data-lucide="video" style="width:18px; height:18px; color:var(--accent);"></i>
+                    <span id="modal-camera-title">Connect Camera Device</span>
+                </div>
+                <p style="font-size:12px; color:var(--text-secondary);">
+                    Configure room location, choose a camera device, and select mandatory rules for this specific room.
+                </p>
+
+                <!-- Live Camera Preview Box Inside Modal -->
+                <div style="position:relative; width:100%; aspect-ratio:16/9; background:#000000; border-radius:4px; overflow:hidden; border:1px solid var(--border-color); display:flex; align-items:center; justify-content:center;">
+                    <video id="modal-preview-video" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;" class="hidden"></video>
+                    <div id="modal-preview-empty" style="color:var(--text-disabled); font-size:12px; display:flex; flex-direction:column; align-items:center; gap:6px;">
+                        <i data-lucide="video" style="width:24px; height:24px;"></i>
+                        <span id="modal-preview-status">Select a camera below to start preview</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Select Camera Device</label>
+                    <select id="modal-device-select" class="modal-input" style="margin-top:6px;" onchange="handleModalDeviceChange()">
+                        <option value="default">Default System Camera / Webcam</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Room Name / Location Tag</label>
+                    <input type="text" id="modal-room-name" class="modal-input" placeholder="e.g. Zone B - Welding Bay, Gate 1 Entrance" style="margin-top:6px;">
+                </div>
+
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <label style="font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase;">Mandatory PPE Rules For This Room</label>
+                        <span style="font-size:11px; color:var(--text-disabled);">Checks violations for this room only</span>
+                    </div>
+                    <div class="modal-rules-grid" id="modal-cam-rules">
+                        <button type="button" class="violation-toggle-btn selected" data-modal-rule="helmet" onclick="toggleModalCamRule(this)">
+                            <i data-lucide="hard-hat" style="width:14px; height:14px;"></i>
+                            No Helmet
+                        </button>
+                        <button type="button" class="violation-toggle-btn selected" data-modal-rule="vest" onclick="toggleModalCamRule(this)">
+                            <i data-lucide="shield-check" style="width:14px; height:14px;"></i>
+                            No Safety Vest
+                        </button>
+                        <button type="button" class="violation-toggle-btn selected" data-modal-rule="helmet_arm" onclick="toggleModalCamRule(this)">
+                            <i data-lucide="shield-alert" style="width:14px; height:14px;"></i>
+                            Helmet Under Arm
+                        </button>
+                        <button type="button" class="violation-toggle-btn" data-modal-rule="gloves" onclick="toggleModalCamRule(this)">
+                            <i data-lucide="hand" style="width:14px; height:14px;"></i>
+                            No Gloves
+                        </button>
+                        <button type="button" class="violation-toggle-btn" data-modal-rule="boots" onclick="toggleModalCamRule(this)">
+                            <i data-lucide="footprints" style="width:14px; height:14px;"></i>
+                            No Safety Boots
+                        </button>
+                        <button type="button" class="violation-toggle-btn" data-modal-rule="goggles" onclick="toggleModalCamRule(this)">
+                            <i data-lucide="glasses" style="width:14px; height:14px;"></i>
+                            No Eye Protection
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                    <button class="btn-outlined" style="padding:6px 12px; font-size:12px;" onclick="closeCameraDeviceModal()">Cancel</button>
+                    <button class="btn-primary" style="padding:6px 16px; font-size:12px;" onclick="confirmCameraConnection()">
+                        <i data-lucide="check" style="width:14px; height:14px;"></i>
+                        Confirm & Connect
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Proof Image Lightbox Modal -->
+        <div id="proof-lightbox-modal" class="lightbox-modal hidden" onclick="closeProofLightbox()">
+            <div class="lightbox-card" onclick="event.stopPropagation()">
+                <div class="lightbox-header">
+                    <div>
+                        <span id="lightbox-incident-id" style="font-family:monospace; font-weight:700; color:var(--text-primary); font-size:14px;">INC-000000</span>
+                        <span id="lightbox-incident-meta" style="color:var(--text-secondary); font-size:12px; margin-left:8px;">Violation Proof Snapshot</span>
+                    </div>
+                    <button class="icon-btn" onclick="closeProofLightbox()" title="Close">
+                        <i data-lucide="x" style="width:16px; height:16px;"></i>
+                    </button>
+                </div>
+                <div class="lightbox-body">
+                    <img id="lightbox-image" src="" alt="Violation Proof">
+                </div>
+                <div class="lightbox-footer">
+                    <div>
+                        <span id="lightbox-verdict-text" style="font-weight:600; color:var(--accent);">Violation Details</span>
+                        <div id="lightbox-timestamp-text" style="color:var(--text-secondary); font-size:11px; margin-top:2px;">Timestamp</div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <button class="btn-outlined" id="lightbox-download-btn" onclick="downloadProofImage()">
+                            <i data-lucide="download" style="width:14px; height:14px;"></i>
+                            Download Proof Image
+                        </button>
+                        <button class="btn-primary" onclick="closeProofLightbox()">Done</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden Native File Inputs -->
+        <input type="file" id="hidden-image-upload" accept="image/*" class="hidden">
+        <input type="file" id="hidden-video-upload" accept="video/*" class="hidden">
+
+    </main>
+
+    <!-- Application Script -->
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            if (window.lucide) window.lucide.createIcons();
+        });
+    </script>
+</body>
+</html>
