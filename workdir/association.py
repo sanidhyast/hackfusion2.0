@@ -85,15 +85,18 @@ def compute_ioa(item_box: List[float], zone_box: List[float]) -> float:
 def extract_anatomical_zones(person_box: List[float]) -> Dict[str, List[float]]:
     """
     Splits person bounding box into anatomical target zones:
-    - Head Zone: Top 0% to 32% of height
-    - Torso Zone: Middle 22% to 75% of height
+    - Head Zone: Top 0% to 35% for upright workers, expanding up to 50% for leaning/reaching/overhead postures
+    - Torso Zone: 18% to 80% of height
     - Full Body: 0% to 100%
     """
     x1, y1, x2, y2 = person_box
     h = max(1.0, y2 - y1)
+    w = max(1.0, x2 - x1)
+    # For overhead/leaning/reaching workers (aspect ratio w/h > 0.75), head extends deeper into the box
+    head_ratio = 0.50 if (w / h) > 0.75 else 0.35
     return {
-        "head": [x1, y1, x2, y1 + 0.32 * h],
-        "torso": [x1, y1 + 0.22 * h, x2, y1 + 0.75 * h],
+        "head": [x1, y1, x2, y1 + head_ratio * h],
+        "torso": [x1, y1 + 0.18 * h, x2, y1 + 0.80 * h],
         "full": [x1, y1, x2, y2]
     }
 
@@ -101,10 +104,10 @@ class PPEAssociationEngine:
     def __init__(
         self,
         required_ppe: Optional[List[str]] = None,
-        head_ioa_threshold: float = 0.40,
-        torso_ioa_threshold: float = 0.45,
+        head_ioa_threshold: float = 0.25,
+        torso_ioa_threshold: float = 0.35,
         min_person_conf: float = 0.35,
-        min_ppe_conf: float = 0.20
+        min_ppe_conf: float = 0.15
     ):
         # Default mandatory equipment per problem statement: helmet and safety vest
         self.required_ppe = required_ppe or ["helmet", "vest"]
