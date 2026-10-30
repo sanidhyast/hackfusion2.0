@@ -1500,7 +1500,8 @@ function getEvaluatedImageWorkers() {
                 for (const item of data.unassigned_items) {
                     const cname = (item.class_name || "").toLowerCase();
                     const isCarriedCandidate = cname.includes("helmet") || cname.includes("hardhat");
-                    if (isCarriedCandidate) {
+                    const itemConf = (item.confidence !== undefined) ? item.confidence : (item.conf !== undefined ? item.conf : 0.8);
+                    if (isCarriedCandidate && itemConf >= 0.25) {
                         const [ix1, iy1, ix2, iy2] = item.box;
                         const interX1 = Math.max(czX1, ix1);
                         const interY1 = Math.max(czY1, iy1);
@@ -1521,7 +1522,7 @@ function getEvaluatedImageWorkers() {
 
         if (state.imageRules.helmet_arm && hasCarriedHelmet) {
             isCompliant = false;
-            missingChips.push("Helmet in Hand / Arm");
+            missingChips.push("Helmet Under Arm");
         }
         if (state.imageRules.gloves && !w.detected_ppe.gloves) {
             isCompliant = false;
@@ -2009,7 +2010,7 @@ function getEvaluatedVideoIncidents() {
                                  (inc.missing_ppe && inc.missing_ppe.includes("helmet_under_arm"));
         if (state.videoRules.helmet_arm && hasCarriedHelmet) {
             isComp = false;
-            missing.push("Helmet in Hand / Arm");
+            missing.push("Helmet Under Arm");
         }
         if (state.videoRules.gloves && !inc.detected_ppe?.gloves && "gloves" in (inc.detected_ppe || {})) {
             isComp = false;

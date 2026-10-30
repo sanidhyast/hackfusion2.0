@@ -110,18 +110,18 @@ def nms_boxes(dets: List[Detection], iou_thresh: float = 0.35) -> List[Detection
 def extract_anatomical_zones(person_box: List[float]) -> Dict[str, List[float]]:
     """
     Splits person bounding box into anatomical target zones:
-    - Head Zone: Top 0% to 35% for upright workers, expanding up to 50% for leaning/reaching/overhead postures
-    - Torso Zone: 18% to 80% of height
+    - Head Zone: Top 0% to 32% for upright workers, expanding up to 40% for leaning/reaching/overhead postures
+    - Torso Zone: 18% to 82% of height
     - Full Body: 0% to 100%
     """
     x1, y1, x2, y2 = person_box
     h = max(1.0, y2 - y1)
     w = max(1.0, x2 - x1)
-    # For overhead/leaning/reaching workers (aspect ratio w/h > 0.75), head extends deeper into the box
-    head_ratio = 0.50 if (w / h) > 0.75 else 0.35
+    # Head zone: top 32% (or 40% for overhead postures)
+    head_ratio = 0.40 if (w / h) > 0.85 else 0.32
     return {
         "head": [x1, y1, x2, y1 + head_ratio * h],
-        "torso": [x1, y1 + 0.18 * h, x2, y1 + 0.80 * h],
+        "torso": [x1, y1 + 0.18 * h, x2, y1 + 0.82 * h],
         "full": [x1, y1, x2, y2]
     }
 
@@ -183,61 +183,93 @@ class PPEAssociationEngine:
         # Sort workers left-to-right for consistent numbering
         workers = sorted(workers, key=lambda w: w.box[0])
 
+        # Track assigned item IDs to enforce 1-to-1 matching across workers
+        assigned_helmet_ids = set()
+        assigned_vest_ids = set()
+
         for idx, worker in enumerate(workers, 1):
             zones = extract_anatomical_zones(worker.box)
+            wx1, wy1, wx2, wy2 = worker.box
+            ww = max(1.0, wx2 - wx1)
+            wh = max(1.0, wy2 - wy1)
+            worker_cx = (wx1 + wx2) / 2.0
+
             detected_ppe = {}
             negative_flags = []
 
-            # 1. Check Helmet association (must be on head zone)
-            best_helmet = None
-            best_helmet_ioa = 0.0
+            # 1. Check Helmet association (must be on head zone and horizontally centered)
+            candidate_helmets = []
             for h in helmets:
+                if id(h) in assigned_helmet_ids:
+                    continue
+                hx1, hy1, hx2, hy2 = h.box
+                h_cx = (hx1 + hx2) / 2.0
+                h_cy = (hy1 + hy2) / 2.0
+
+                # Horizontal centering: helmet center must be within central span of worker
+                if abs(h_cx - worker_cx) / ww > 0.35:
+                    continue
+                # Vertical head zone: helmet top must be in top 35% of worker body, center in top 45%
+                if hy1 > (wy1 + 0.35 * wh) or h_cy > (wy1 + 0.45 * wh):
+                    continue
+
                 ioa = compute_ioa(h.box, zones["head"])
-                if ioa > best_helmet_ioa and ioa >= self.head_ioa_threshold:
-                    best_helmet = h
-                    best_helmet_ioa = ioa
-            
-            if best_helmet:
-                detected_ppe["helmet"] = best_helmet
+                if ioa >= self.head_ioa_threshold:
+                    candidate_helmets.append((ioa, h.confidence, h))
 
-            # 2. Check Vest association (must be on torso zone)
-            best_vest = None
-            best_vest_ioa = 0.0
-            for v in vests:
-                ioa = compute_ioa(v.box, zones["torso"])
-                if ioa > best_vest_ioa and ioa >= self.torso_ioa_threshold:
-                    best_vest = v
-                    best_vest_ioa = ioa
+            best_helmet = None
+            if candidate_helmets:
+                candidate_helmets.sort(key=lambda x: x[0] * x[1], reverse=True)
+                best_helmet = candidate_helmets[0][2]
 
-            if best_vest:
-                detected_ppe["vest"] = best_vest
-
-            # 3. Check for explicit negative labels (e.g. no_helmet) in head zone
-            # A negative label (bare head / no_helmet) only indicates violation if:
-            # - No helmet was detected on the worker, OR
-            # - The no_helmet box directly overlaps the detected helmet box AND has significantly higher confidence
-            has_conflicting_no_helmet = False
+            # 2. Check for explicit negative bare head labels (no_helmet) in head zone
+            has_bare_head = False
             for nh in no_helmets:
+                nh_x1, nh_y1, nh_x2, nh_y2 = nh.box
+                nh_cx = (nh_x1 + nh_x2) / 2.0
+                if abs(nh_cx - worker_cx) / ww > 0.35:
+                    continue
                 ioa = compute_ioa(nh.box, zones["head"])
                 if ioa >= self.head_ioa_threshold:
                     if best_helmet is None:
-                        has_conflicting_no_helmet = True
+                        has_bare_head = True
                         negative_flags.append("no_helmet")
-                    else:
-                        inter = compute_box_intersection(nh.box, best_helmet.box)
-                        if inter > 0 and nh.confidence > (best_helmet.confidence + 0.15):
-                            has_conflicting_no_helmet = True
-                            negative_flags.append("no_helmet")
+                    elif nh.confidence > best_helmet.confidence:
+                        has_bare_head = True
+                        negative_flags.append("no_helmet")
+                        best_helmet = None
+
+            if best_helmet:
+                detected_ppe["helmet"] = best_helmet
+                assigned_helmet_ids.add(id(best_helmet))
+
+            # 3. Check Vest association (must be on torso zone)
+            candidate_vests = []
+            for v in vests:
+                if id(v) in assigned_vest_ids:
+                    continue
+                vx1, vy1, vx2, vy2 = v.box
+                v_cx = (vx1 + vx2) / 2.0
+                if abs(v_cx - worker_cx) / ww > 0.35:
+                    continue
+                ioa = compute_ioa(v.box, zones["torso"])
+                if ioa >= self.torso_ioa_threshold:
+                    candidate_vests.append((ioa, v.confidence, v))
+
+            if candidate_vests:
+                candidate_vests.sort(key=lambda x: x[0] * x[1], reverse=True)
+                best_vest = candidate_vests[0][2]
+                detected_ppe["vest"] = best_vest
+                assigned_vest_ids.add(id(best_vest))
 
             # 4. Evaluate compliance rules
             missing = []
             for req in self.required_ppe:
                 if req not in detected_ppe or detected_ppe[req] is None:
                     missing.append(f"missing_{req}")
-                elif req == "helmet" and has_conflicting_no_helmet:
+                elif req == "helmet" and has_bare_head:
                     missing.append("missing_helmet")
 
-            # Remove duplicates in missing
             missing = list(set(missing))
             is_compliant = len(missing) == 0
             verdict = "COMPLIANT" if is_compliant else "VIOLATION"
@@ -260,7 +292,6 @@ class PPEAssociationEngine:
 
         for h in helmets:
             if id(h) not in associated_helmet_ids:
-                # Do not treat as unassigned if it overlaps an already associated worn helmet
                 overlaps_worn = any(
                     compute_box_intersection(h.box, ws.detected_ppe["helmet"].box) / h.area > 0.25
                     for ws in worker_statuses if ws.detected_ppe.get("helmet") and h.area > 0
@@ -277,25 +308,34 @@ class PPEAssociationEngine:
                     unassigned_items.append(v)
 
         # Check if unassigned helmet is carried by a worker (under arm, in hand, or on lap)
+        claimed_carry_helmets = set()
         for ws in worker_statuses:
             if ws.detected_ppe.get("helmet") is None:
                 wx1, wy1, wx2, wy2 = ws.box
                 wh = max(1.0, wy2 - wy1)
                 ww = max(1.0, wx2 - wx1)
-                # Spatial arm / hand / waist / lap carrying zone (extends slightly to catch cropped bodies & hand positions)
-                carry_zone = [wx1 - 0.35 * ww, wy1 + 0.18 * wh, wx2 + 0.35 * ww, wy2 + 0.30 * wh]
+                # Spatial arm / hand / waist / lap carrying zone
+                carry_zone = [wx1 - 0.25 * ww, wy1 + 0.20 * wh, wx2 + 0.25 * ww, wy2 + 0.35 * wh]
                 for h in unassigned_items:
+                    if id(h) in claimed_carry_helmets:
+                        continue
+                    if norm_name(h.class_name) != "helmet":
+                        continue
+                    # Reject background query noise: real carried helmet must have >= 0.25 confidence
+                    if h.confidence < 0.25:
+                        continue
                     ioa = compute_ioa(h.box, carry_zone)
                     inter = compute_box_intersection(h.box, carry_zone)
-                    if norm_name(h.class_name) == "helmet" and (ioa > 0.15 or (h.area > 0 and inter / h.area > 0.15)):
+                    if ioa > 0.15 or (h.area > 0 and inter / h.area > 0.15):
                         if "helmet_under_arm" not in ws.negative_flags:
                             ws.negative_flags.append("helmet_under_arm")
-                        if "missing_helmet" in ws.missing_ppe:
-                            ws.missing_ppe.remove("missing_helmet")
+                        if "missing_helmet" not in ws.missing_ppe:
+                            ws.missing_ppe.append("missing_helmet")
                         if "helmet_under_arm" not in ws.missing_ppe:
                             ws.missing_ppe.append("helmet_under_arm")
                         ws.is_compliant = False
                         ws.verdict = "VIOLATION"
+                        claimed_carry_helmets.add(id(h))
                         break
 
         total_workers = len(worker_statuses)
@@ -349,7 +389,10 @@ def draw_compliance_annotations(
         # Status Badge at top
         verdict_str = f"Worker #{ws.worker_id}: {ws.verdict}"
         if not ws.is_compliant:
-            missing_str = ", ".join([m.replace("missing_", "No ") for m in ws.missing_ppe])
+            missing_str = ", ".join([
+                "Helmet Under Arm" if m == "helmet_under_arm" else m.replace("missing_", "No ")
+                for m in ws.missing_ppe
+            ])
             badge_text = f"{verdict_str} [{missing_str}]"
         else:
             badge_text = f"{verdict_str} [Helmet + Vest]"
