@@ -187,18 +187,28 @@ class PPEAssociationEngine:
                 detected_ppe["vest"] = best_vest
 
             # 3. Check for explicit negative labels (e.g. no_helmet) in head zone
+            # A negative label (bare head / no_helmet) only indicates violation if:
+            # - No helmet was detected on the worker, OR
+            # - The no_helmet box directly overlaps the detected helmet box AND has significantly higher confidence
+            has_conflicting_no_helmet = False
             for nh in no_helmets:
                 ioa = compute_ioa(nh.box, zones["head"])
                 if ioa >= self.head_ioa_threshold:
-                    negative_flags.append("no_helmet")
+                    if best_helmet is None:
+                        has_conflicting_no_helmet = True
+                        negative_flags.append("no_helmet")
+                    else:
+                        inter = compute_box_intersection(nh.box, best_helmet.box)
+                        if inter > 0 and nh.confidence > (best_helmet.confidence + 0.15):
+                            has_conflicting_no_helmet = True
+                            negative_flags.append("no_helmet")
 
             # 4. Evaluate compliance rules
             missing = []
             for req in self.required_ppe:
                 if req not in detected_ppe or detected_ppe[req] is None:
                     missing.append(f"missing_{req}")
-                elif req == "helmet" and "no_helmet" in negative_flags:
-                    # Contradiction check: explicit no_helmet detection overrides weak helmet match
+                elif req == "helmet" and has_conflicting_no_helmet:
                     missing.append("missing_helmet")
 
             # Remove duplicates in missing

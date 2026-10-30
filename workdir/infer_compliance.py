@@ -77,9 +77,9 @@ class CompliancePipeline:
         thresh = conf_thresh if conf_thresh is not None else self.conf_threshold
 
         if self.model_type == "rfdetr":
-            # RF-DETR inference on RGB image with sensitive equipment floor (0.15)
+            # RF-DETR inference on RGB image with sensitive equipment floor (0.06)
             # This ensures overhead/glared helmets and vests are captured even if person conf slider is higher
-            model_thresh = min(0.15, thresh)
+            model_thresh = min(0.06, thresh)
             img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
             results = self.model.predict(img_rgb, threshold=model_thresh)
             # results from supervision Detections
@@ -109,7 +109,7 @@ class CompliancePipeline:
         raw_dets, latency_ms = self.predict_image(img_bgr, conf_thresh=conf_thresh)
         thresh = conf_thresh if conf_thresh is not None else self.conf_threshold
         self.engine.min_person_conf = thresh
-        self.engine.min_ppe_conf = min(0.15, thresh)
+        self.engine.min_ppe_conf = min(0.06, thresh)
         workers, unassigned, summary = self.engine.associate_and_evaluate(raw_dets)
         annotated = draw_compliance_annotations(img_bgr, workers, unassigned)
         summary["latency_ms"] = round(latency_ms, 2)
