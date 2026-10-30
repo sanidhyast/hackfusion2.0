@@ -158,20 +158,25 @@ function initCctvControls() {
     const slider = document.getElementById("cctv-conf-slider");
     const numInput = document.getElementById("cctv-conf-num");
 
-    slider.addEventListener("input", (e) => {
-        const val = parseFloat(e.target.value);
-        state.cctvThreshold = val;
-        numInput.value = Math.round(val * 100);
-    });
+    if (slider && numInput) {
+        slider.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value);
+            state.cctvThreshold = val;
+            numInput.value = Math.round(val * 100);
+        });
 
-    numInput.addEventListener("change", (e) => {
-        let val = parseInt(e.target.value, 10);
-        if (isNaN(val)) val = 35;
-        val = Math.max(10, Math.min(val, 95));
-        numInput.value = val;
-        slider.value = (val / 100).toFixed(2);
-        state.cctvThreshold = val / 100;
-    });
+        numInput.addEventListener("change", (e) => {
+            let val = parseInt(e.target.value, 10);
+            if (isNaN(val)) val = 35;
+            val = Math.max(10, Math.min(val, 95));
+            numInput.value = val;
+            slider.value = (val / 100).toFixed(2);
+            state.cctvThreshold = val / 100;
+        });
+    }
+
+    // Initialize CCTV right sidebar to empty state
+    updateCctvSidebarForFocus();
 }
 
 async function openCameraDeviceModal(camIndex) {
@@ -507,6 +512,7 @@ function startCameraInferenceLoop(camIndex) {
 function handleCamInferenceResult(camIndex, data) {
     const camObj = state.activeCameras[camIndex];
     const rawWorkers = data.workers || [];
+    camObj.rawWorkers = rawWorkers; // Store raw detections for instant rule toggling
 
     // Filter by active rules for this specific camera (falls back to global cctvRules)
     const rules = camObj.rules || state.cctvRules;
@@ -560,16 +566,18 @@ function handleCamInferenceResult(camIndex, data) {
     const tile = document.getElementById(`cam-tile-${camIndex}`);
 
     const violCount = evaluated.filter(w => !w.is_compliant).length;
-    workersFooter.innerText = `Workers: ${evaluated.length}`;
+    if (workersFooter) workersFooter.innerText = `Workers: ${evaluated.length}`;
 
-    if (violCount > 0) {
-        statusFooter.className = "status-tag-chip violation";
-        statusFooter.innerText = `🚨 ${violCount} VIOLATION`;
-        tile.classList.add("has-violation");
-    } else {
-        statusFooter.className = "status-tag-chip compliant";
-        statusFooter.innerText = "COMPLIANT";
-        tile.classList.remove("has-violation");
+    if (statusFooter) {
+        if (violCount > 0) {
+            statusFooter.className = "status-tag-chip violation";
+            statusFooter.innerText = `🚨 ${violCount} VIOLATION`;
+            if (tile) tile.classList.add("has-violation");
+        } else {
+            statusFooter.className = "status-tag-chip compliant";
+            statusFooter.innerText = "COMPLIANT";
+            if (tile) tile.classList.remove("has-violation");
+        }
     }
 
     // Draw live bounding boxes on tile canvas
@@ -577,6 +585,16 @@ function handleCamInferenceResult(camIndex, data) {
 
     // Aggregate KPIs across all active CCTV feeds
     updateCctvKpis();
+
+    // If this screen is currently focused on right sidebar:
+    if (state.activeCctvFocus === camIndex) {
+        renderCctvVerdictsList(evaluated);
+
+        // Auto-log live breach if a violation is detected while screen is focused (debounced 12s)
+        if (violCount > 0) {
+            checkCctvAutoLogBreach(camIndex);
+        }
+    }
 }
 
 function updateCctvKpis() {
@@ -599,59 +617,98 @@ function updateCctvKpis() {
     const activeCount = Object.values(state.activeCameras).filter(c => c.streaming).length;
     const rate = total > 0 ? Math.round((compliant / total) * 100) : 100;
 
-    document.getElementById("kpi-total-val").innerText = total;
-    document.getElementById("kpi-total-sub").innerText = activeCount > 0 
+    const totalEl = document.getElementById("kpi-total-val");
+    if (totalEl) totalEl.innerText = total;
+    const totalSub = document.getElementById("kpi-total-sub");
+    if (totalSub) totalSub.innerText = activeCount > 0 
         ? `${total} workers across ${activeCount} active camera${activeCount > 1 ? 's' : ''}`
         : "No active streams connected";
 
-    document.getElementById("kpi-compliant-val").innerText = compliant;
-    document.getElementById("kpi-compliant-sub").innerText = `${compliant} of ${total} workers compliant`;
+    const compEl = document.getElementById("kpi-compliant-val");
+    if (compEl) compEl.innerText = compliant;
+    const compSub = document.getElementById("kpi-compliant-sub");
+    if (compSub) compSub.innerText = `${compliant} of ${total} workers compliant`;
 
     const violCard = document.getElementById("kpi-violations-card");
-    document.getElementById("kpi-violations-val").innerText = violations;
-    if (violations > 0) {
-        violCard.classList.add("has-violations");
-        document.getElementById("kpi-violations-sub").innerText = `${violations} active safety breaches`;
-    } else {
-        violCard.classList.remove("has-violations");
-        document.getElementById("kpi-violations-sub").innerText = `0 active safety breaches`;
+    const violEl = document.getElementById("kpi-violations-val");
+    if (violEl) violEl.innerText = violations;
+    if (violCard) {
+        if (violations > 0) {
+            violCard.classList.add("has-violations");
+            const violSub = document.getElementById("kpi-violations-sub");
+            if (violSub) violSub.innerText = `${violations} active safety breaches`;
+        } else {
+            violCard.classList.remove("has-violations");
+            const violSub = document.getElementById("kpi-violations-sub");
+            if (violSub) violSub.innerText = `0 active safety breaches`;
+        }
     }
 
-    document.getElementById("kpi-rate-val").innerText = `${rate}%`;
-    document.getElementById("kpi-rate-sub").innerText = rate >= 90 ? "Site safety target met" : "Below site safety target (90%)";
+    const rateEl = document.getElementById("kpi-rate-val");
+    if (rateEl) rateEl.innerText = `${rate}%`;
+    const rateSub = document.getElementById("kpi-rate-sub");
+    if (rateSub) rateSub.innerText = rate >= 90 ? "Site safety target met" : "Below site safety target (90%)";
 
-    // Update Right Panel CCTV verdicts list
-    renderCctvVerdictsList(allWorkers);
+    // Update Right Panel CCTV verdicts list ONLY IF a camera screen is focused!
+    if (state.activeCctvFocus) {
+        const focusedCam = state.activeCameras[state.activeCctvFocus];
+        renderCctvVerdictsList(focusedCam ? (focusedCam.detections || []) : []);
+    }
 
     // Slim alert banner
     const banner = document.getElementById("violation-alert-banner");
     const bannerText = document.getElementById("alert-banner-text");
-    if (violations > 0) {
-        const firstViol = allWorkers.find(w => !w.is_compliant);
-        bannerText.innerText = `${violations} violation detected - ${firstViol.camera} Worker #${firstViol.worker_id}: ${firstViol.missing_chips.join(', ')}`;
-        banner.classList.remove("hidden");
-    } else {
-        banner.classList.add("hidden");
+    if (banner && bannerText) {
+        if (violations > 0) {
+            const firstViol = allWorkers.find(w => !w.is_compliant);
+            bannerText.innerText = `${violations} violation detected - ${firstViol?.camera || 'CAM'} Worker #${firstViol?.worker_id}: ${(firstViol?.missing_chips || []).join(', ')}`;
+            banner.classList.remove("hidden");
+        } else {
+            banner.classList.add("hidden");
+        }
     }
 }
 
 function renderCctvVerdictsList(workers) {
     const container = document.getElementById("cctv-verdicts-container");
     const badge = document.getElementById("cctv-verdicts-badge");
-    const activeCount = Object.values(state.activeCameras).filter(c => c.streaming).length;
+    if (!container) return;
 
-    badge.innerText = `${activeCount} Active Feed${activeCount !== 1 ? 's' : ''}`;
+    if (!state.activeCctvFocus) {
+        // No screen focused - right sidebar remains empty
+        return;
+    }
 
-    if (!workers || workers.length === 0) {
+    const camIndex = state.activeCctvFocus;
+    const camObj = state.activeCameras[camIndex];
+    if (!camObj) return;
+
+    const isStreaming = camObj.streaming;
+    const camWorkers = workers !== undefined ? workers : (camObj.detections || []);
+
+    if (badge) {
+        badge.innerText = `${camWorkers.length} Worker${camWorkers.length !== 1 ? 's' : ''}`;
+    }
+
+    if (!isStreaming) {
         container.innerHTML = `
             <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
-                ${activeCount === 0 ? "No cameras connected. Click on any screen above to start camera." : "Camera streaming. No workers currently in view."}
+                ${camObj.label} is currently disconnected.<br>Click 'Select Camera Device' on screen to start feed.
             </div>
         `;
         return;
     }
 
-    container.innerHTML = workers.map(w => {
+    if (!camWorkers || camWorkers.length === 0) {
+        container.innerHTML = `
+            <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
+                Camera feed active. No workers currently in view.
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = camWorkers.map(w => {
         const isComp = w.is_compliant;
         const badgeClass = isComp ? "compliant" : "violation";
         const badgeText = isComp ? "COMPLIANT" : "VIOLATION";
@@ -668,7 +725,7 @@ function renderCctvVerdictsList(workers) {
             } else if (hasV) {
                 chipsHtml = `<span class="compliant-pill-chip" style="background:rgba(234,179,8,0.12); color:#FACC15; border-color:rgba(234,179,8,0.3);">Vest Worn (No Helmet)</span>`;
             } else {
-                chipsHtml = `<span class="compliant-pill-chip" style="background:#262626; color:#A3A3A3; border-color:#404040;">No PPE (Rules Inactive)</span>`;
+                chipsHtml = `<span class="compliant-pill-chip" style="background:#262626; color:#A3A3A3; border-color:#404040;">Rules Met</span>`;
             }
         } else {
             chipsHtml = (w.missing_chips || []).map(c => `<span class="violation-pill-chip">${c}</span>`).join("");
@@ -678,15 +735,15 @@ function renderCctvVerdictsList(workers) {
             <div class="worker-verdict-card">
                 <div class="card-top-row">
                     <div class="worker-meta-left">
-                        <span class="worker-id-badge">${w.camera} • Worker #${w.worker_id}</span>
+                        <span class="worker-id-badge">Worker #${w.worker_id}</span>
                         <span class="worker-conf-score">${conf}%</span>
                     </div>
                     <span class="status-badge-chip ${badgeClass}">${badgeText}</span>
                 </div>
                 <div class="worker-tags-row">${chipsHtml}</div>
                 <div class="card-bottom-row">
-                    <span>${w.camera} • Live Stream</span>
-                    <select class="reviewer-dropdown" onclick="event.stopPropagation()" onchange="modifyCctvVerdict('${w.camera}', ${w.worker_id}, this.value)">
+                    <span>${camObj.label} • Live Stream</span>
+                    <select class="reviewer-dropdown" onclick="event.stopPropagation()" onchange="modifyCctvVerdict('${camObj.label}', ${w.worker_id}, this.value)">
                         <option value="confirm" ${(!w.reviewer_status || w.reviewer_status === 'confirm') ? 'selected' : ''}>Confirmed</option>
                         <option value="false_alarm" ${w.reviewer_status === 'false_alarm' ? 'selected' : ''}>Dismiss as False Alarm</option>
                         <option value="violation" ${w.reviewer_status === 'violation' ? 'selected' : ''}>Force Violation</option>
@@ -751,8 +808,222 @@ function toggleQuadFocus(tileNum) {
         tiles.forEach(t => t.classList.remove("active-focus"));
         const target = document.getElementById(`cam-tile-${tileNum}`);
         if (target) target.classList.add("active-focus");
+
+        // AUTO-SAVE LIVE BREACH TO AUDIT ON DOUBLE-CLICK!
+        autoLogCctvBreachOnFocus(tileNum);
     }
+
+    // Update right sidebar visibility & rules/verdicts for this screen
+    updateCctvSidebarForFocus();
     setTimeout(syncAllCanvases, 100);
+}
+
+function updateCctvSidebarForFocus() {
+    const emptyPanel = document.getElementById("cctv-sidebar-empty");
+    const activePanel = document.getElementById("cctv-sidebar-active");
+    if (!emptyPanel || !activePanel) return;
+
+    if (!state.activeCctvFocus) {
+        emptyPanel.classList.remove("hidden");
+        activePanel.classList.add("hidden");
+        return;
+    }
+
+    emptyPanel.classList.add("hidden");
+    activePanel.classList.remove("hidden");
+
+    const camIndex = state.activeCctvFocus;
+    const camObj = state.activeCameras[camIndex];
+    if (!camObj) return;
+
+    const titleEl = document.getElementById("cctv-focused-cam-title");
+    const roomEl = document.getElementById("cctv-focused-cam-room");
+    if (titleEl) titleEl.innerText = `${camObj.label} Rules`;
+    if (roomEl) roomEl.innerText = camObj.roomName || `Camera ${camIndex}`;
+
+    // Sync button states with this camera's rules
+    const btns = document.querySelectorAll("[data-cctvrule]");
+    btns.forEach(btn => {
+        const ruleKey = btn.dataset.cctvrule;
+        const isActive = !!(camObj.rules && camObj.rules[ruleKey]);
+        btn.classList.toggle("selected", isActive);
+    });
+
+    renderCctvVerdictsList(camObj.detections || []);
+    if (window.lucide) window.lucide.createIcons();
+}
+
+function toggleFocusedCameraRule(btn) {
+    if (!state.activeCctvFocus) return;
+    const camIndex = state.activeCctvFocus;
+    const camObj = state.activeCameras[camIndex];
+    if (!camObj) return;
+
+    const rule = btn.dataset.cctvrule;
+    btn.classList.toggle("selected");
+    if (!camObj.rules) camObj.rules = {};
+    camObj.rules[rule] = btn.classList.contains("selected");
+
+    reEvaluateCameraDetections(camIndex);
+}
+
+function setFocusedCameraRules(selectAll) {
+    if (!state.activeCctvFocus) return;
+    const camIndex = state.activeCctvFocus;
+    const camObj = state.activeCameras[camIndex];
+    if (!camObj) return;
+
+    const btns = document.querySelectorAll("[data-cctvrule]");
+    btns.forEach(btn => {
+        const rule = btn.dataset.cctvrule;
+        if (selectAll) {
+            btn.classList.add("selected");
+            camObj.rules[rule] = true;
+        } else {
+            btn.classList.remove("selected");
+            camObj.rules[rule] = false;
+        }
+    });
+
+    reEvaluateCameraDetections(camIndex);
+}
+
+function reEvaluateCameraDetections(camIndex) {
+    const camObj = state.activeCameras[camIndex];
+    if (!camObj) return;
+    const rawWorkers = camObj.rawWorkers || [];
+    const rules = camObj.rules || {};
+
+    const evaluated = rawWorkers.map(w => {
+        let isCompliant = true;
+        const missing = [];
+
+        if (rules.helmet && !w.detected_ppe.helmet) {
+            isCompliant = false;
+            missing.push("No helmet");
+        }
+        if (rules.vest && !w.detected_ppe.vest) {
+            isCompliant = false;
+            missing.push("No vest");
+        }
+        const hasCarriedHelmet = (w.negative_flags && w.negative_flags.includes("helmet_under_arm")) ||
+                                 (w.missing_ppe && w.missing_ppe.includes("helmet_under_arm"));
+        if (rules.helmet_arm && hasCarriedHelmet) {
+            isCompliant = false;
+            missing.push("Helmet Under Arm");
+        }
+        if (rules.gloves && !w.detected_ppe.gloves) {
+            isCompliant = false;
+            missing.push("No gloves");
+        }
+        if (rules.boots && !w.detected_ppe.boots) {
+            isCompliant = false;
+            missing.push("No boots");
+        }
+        if (rules.goggles && !w.detected_ppe.goggles) {
+            isCompliant = false;
+            missing.push("No eye protection");
+        }
+
+        const camName = camObj.roomName ? `CAM-0${camIndex} (${camObj.roomName})` : `CAM-0${camIndex}`;
+
+        return {
+            ...w,
+            is_compliant: isCompliant,
+            verdict: isCompliant ? "COMPLIANT" : "VIOLATION",
+            missing_chips: missing,
+            camera: camName
+        };
+    });
+
+    camObj.detections = evaluated;
+
+    const workersFooter = document.getElementById(`footer-cam-${camIndex}-workers`);
+    const statusFooter = document.getElementById(`footer-cam-${camIndex}-status`);
+    const tile = document.getElementById(`cam-tile-${camIndex}`);
+    const violCount = evaluated.filter(w => !w.is_compliant).length;
+
+    if (workersFooter) workersFooter.innerText = `Workers: ${evaluated.length}`;
+    if (statusFooter) {
+        if (violCount > 0) {
+            statusFooter.className = "status-tag-chip violation";
+            statusFooter.innerText = `🚨 ${violCount} VIOLATION`;
+            if (tile) tile.classList.add("has-violation");
+        } else {
+            statusFooter.className = "status-tag-chip compliant";
+            statusFooter.innerText = "COMPLIANT";
+            if (tile) tile.classList.remove("has-violation");
+        }
+    }
+
+    drawCanvasBoxes(`canvas-cam-${camIndex}`, evaluated);
+    updateCctvKpis();
+    if (state.activeCctvFocus === camIndex) {
+        renderCctvVerdictsList(evaluated);
+    }
+}
+
+const cctvAutoLogTimers = {};
+
+function checkCctvAutoLogBreach(camIndex) {
+    if (state.activeCctvFocus !== camIndex) return;
+    const now = Date.now();
+    if (cctvAutoLogTimers[camIndex] && (now - cctvAutoLogTimers[camIndex] < 12000)) {
+        return;
+    }
+    cctvAutoLogTimers[camIndex] = now;
+    autoLogCctvBreachOnFocus(camIndex);
+}
+
+function autoLogCctvBreachOnFocus(camIndex) {
+    const camObj = state.activeCameras[camIndex];
+    if (!camObj || !camObj.streaming) return;
+
+    const detections = camObj.detections || [];
+    const violations = detections.filter(w => !w.is_compliant);
+
+    if (detections.length > 0) {
+        const sourceName = camObj.roomName ? `CAM-0${camIndex} (${camObj.roomName})` : `CAM-0${camIndex}`;
+        const snapshotImage = captureCameraSnapshot(camIndex);
+        const summary = violations.length > 0
+            ? violations.map(w => `Worker #${w.worker_id}: ${(w.missing_chips || []).join(', ')}`).join(" | ")
+            : "Full PPE Compliance Verified";
+
+        const logEntry = {
+            id: `INC-${Date.now().toString().slice(-6)}`,
+            timestamp: new Date().toLocaleString(),
+            camera: sourceName,
+            totalWorkers: detections.length,
+            compliant: Math.max(0, detections.length - violations.length),
+            violations: violations.length,
+            verdict: summary,
+            snapshotImage: snapshotImage,
+            activeRules: { ...(camObj.rules || {}) },
+            workers: detections.map(w => ({
+                worker_id: w.worker_id,
+                confidence: w.confidence,
+                is_compliant: w.is_compliant,
+                verdict: w.verdict,
+                missing_chips: w.missing_chips || [],
+                detected_ppe: w.detected_ppe || {},
+                negative_flags: w.negative_flags || []
+            }))
+        };
+
+        state.auditLogs.unshift(logEntry);
+        saveAuditLogs();
+        renderAuditTable();
+
+        const banner = document.getElementById("violation-alert-banner");
+        const bannerText = document.getElementById("alert-banner-text");
+        if (banner && bannerText) {
+            bannerText.innerText = `📸 Auto-saved live breach snapshot to Audit Report (${logEntry.id})`;
+            banner.classList.remove("hidden");
+            setTimeout(() => {
+                if (violations.length === 0) banner.classList.add("hidden");
+            }, 3500);
+        }
+    }
 }
 
 function toggleQuadFullscreen() {

@@ -280,43 +280,58 @@
             </section>
         </div>
 
-        <!-- Right Side: CCTV Alerts & Active Camera Verdicts (Full Top-to-Bottom Chat Sidebar) -->
-        <aside class="controls-panel">
+        <!-- Right Side: CCTV Alerts & Active Camera Verdicts (Double-Click a Screen to View/Edit) -->
+        <aside class="controls-panel" id="cctv-controls-panel" style="display:flex; flex-direction:column;">
+            
+            <!-- Empty state when no camera screen is focused -->
+            <div id="cctv-sidebar-empty" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px 24px; color:var(--text-disabled);">
+                <i data-lucide="scan-line" style="width:36px; height:36px; margin-bottom:12px; opacity:0.35;"></i>
+                <div style="font-size:13px; font-weight:600; color:var(--text-secondary); margin-bottom:6px;">No Screen Selected</div>
+                <div style="font-size:12px; line-height:1.5; color:var(--text-disabled); max-width:230px;">
+                    Double-click any camera screen to view live verdicts, customize room rules, and auto-log safety breaches.
+                </div>
+            </div>
+
+            <!-- Active state when a camera screen is double-clicked -->
+            <div id="cctv-sidebar-active" class="hidden" style="flex:1; display:flex; flex-direction:column; gap:0;">
                 <div class="control-section">
-                    <div class="section-header">
-                        <span class="section-title">Active Site Violation Rules</span>
+                    <div class="section-header" style="align-items:flex-start;">
                         <div>
-                            <span class="header-action-link" onclick="setViolationRules(true)">Select all</span>
+                            <span class="section-title" id="cctv-focused-cam-title">CAM-01 Rules</span>
+                            <div id="cctv-focused-cam-room" style="font-size:11px; color:var(--accent); font-weight:600; margin-top:2px;">Zone A - Main Scaffold</div>
+                        </div>
+                        <div>
+                            <span class="header-action-link" onclick="setFocusedCameraRules(true)">Select all</span>
                             <span style="color:var(--border-color); margin: 0 4px;">|</span>
-                            <span class="header-action-link" onclick="setViolationRules(false)">Clear</span>
+                            <span class="header-action-link" onclick="setFocusedCameraRules(false)">Clear</span>
                         </div>
                     </div>
                     <div class="violation-types-grid">
-                        <button class="violation-toggle-btn selected" data-rule="helmet" onclick="toggleRule(this)">
+                        <button class="violation-toggle-btn selected" data-cctvrule="helmet" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="hard-hat" style="width:16px; height:16px;"></i>
                             No Helmet
                         </button>
-                        <button class="violation-toggle-btn selected" data-rule="vest" onclick="toggleRule(this)">
+                        <button class="violation-toggle-btn selected" data-cctvrule="vest" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="shield-check" style="width:16px; height:16px;"></i>
                             No Safety Vest
                         </button>
-                        <button class="violation-toggle-btn selected" data-rule="helmet_arm" onclick="toggleRule(this)">
+                        <button class="violation-toggle-btn selected" data-cctvrule="helmet_arm" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="shield-alert" style="width:16px; height:16px;"></i>
                             Helmet Under Arm
                         </button>
-                        <button class="violation-toggle-btn" data-rule="gloves" onclick="toggleRule(this)">
+                        <button class="violation-toggle-btn" data-cctvrule="gloves" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="hand" style="width:16px; height:16px;"></i>
                             No Gloves
                         </button>
-                        <button class="violation-toggle-btn" data-rule="boots" onclick="toggleRule(this)">
+                        <button class="violation-toggle-btn" data-cctvrule="boots" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="footprints" style="width:16px; height:16px;"></i>
                             No Safety Boots
                         </button>
-                        <button class="violation-toggle-btn" data-rule="goggles" onclick="toggleRule(this)">
+                        <button class="violation-toggle-btn" data-cctvrule="goggles" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="glasses" style="width:16px; height:16px;"></i>
                             No Eye Protection
                         </button>
-                        <button class="violation-toggle-btn" data-rule="other" onclick="toggleRule(this)">
+                        <button class="violation-toggle-btn" data-cctvrule="other" onclick="toggleFocusedCameraRule(this)">
                             <i data-lucide="alert-circle" style="width:16px; height:16px;"></i>
                             Other / Loose PPE
                         </button>
@@ -338,12 +353,12 @@
 
                 <div class="control-section" style="flex:1; display:flex; flex-direction:column; min-height: 220px;">
                     <div class="section-header">
-                        <span class="section-title">Live Camera Verdicts</span>
-                        <span id="cctv-verdicts-badge" style="font-size:12px; color:var(--text-secondary); font-weight:600;">0 Active Feeds</span>
+                        <span class="section-title" id="cctv-verdicts-title">Live Camera Verdicts</span>
+                        <span id="cctv-verdicts-badge" style="font-size:12px; color:var(--text-secondary); font-weight:600;">0 Workers</span>
                     </div>
                     <div class="verdicts-list" id="cctv-verdicts-container">
                         <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
-                            No cameras connected. Click on any screen above to select a camera device.
+                            Camera streaming. No workers currently in view.
                         </div>
                     </div>
                 </div>
@@ -364,7 +379,8 @@
                         </button>
                     </div>
                 </div>
-            </aside>
+            </div>
+        </aside>
         </div>
 
         <!-- ============================================================= -->
@@ -859,7 +875,7 @@
     </main>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.1"></script>
+    <script src="app.js?v=2.2"></script>
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             if (window.lucide) window.lucide.createIcons();
