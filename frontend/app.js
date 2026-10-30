@@ -1756,9 +1756,17 @@ function captureCameraSnapshot(camIndex) {
 }
 
 function captureImageInspectionSnapshot() {
+    // 1. Prefer backend processed image URL if available (persistent on server disk)
+    if (state.currentImageDetections && state.currentImageDetections.processed_image_url) {
+        return state.currentImageDetections.processed_image_url;
+    }
+    if (state.currentImageDetections && state.currentImageDetections.annotated_image_base64) {
+        return state.currentImageDetections.annotated_image_base64;
+    }
+    // 2. Offscreen composite using correct element IDs: #image-display-element and #image-overlay-canvas
     try {
-        const img = document.getElementById("display-image");
-        const canvas = document.getElementById("detection-canvas");
+        const img = document.getElementById("image-display-element");
+        const canvas = document.getElementById("image-overlay-canvas");
         if (!img || !img.naturalWidth) return null;
 
         const off = document.createElement("canvas");
@@ -1767,7 +1775,6 @@ function captureImageInspectionSnapshot() {
         off.height = Math.round(img.naturalHeight * scale);
         const ctx = off.getContext("2d");
 
-        // Composite image and AI overlay
         ctx.drawImage(img, 0, 0, off.width, off.height);
         if (canvas) {
             ctx.drawImage(canvas, 0, 0, off.width, off.height);
@@ -1782,7 +1789,6 @@ function captureImageInspectionSnapshot() {
 function captureVideoInspectionSnapshot() {
     try {
         const video = document.getElementById("video-display-element");
-        const canvas = document.getElementById("video-detection-canvas");
         if (!video || !video.videoWidth) return null;
 
         const off = document.createElement("canvas");
@@ -1792,9 +1798,6 @@ function captureVideoInspectionSnapshot() {
         const ctx = off.getContext("2d");
 
         ctx.drawImage(video, 0, 0, off.width, off.height);
-        if (canvas) {
-            ctx.drawImage(canvas, 0, 0, off.width, off.height);
-        }
         return off.toDataURL("image/jpeg", 0.80);
     } catch (e) {
         console.warn("Could not capture video inspection snapshot:", e);
@@ -2049,15 +2052,17 @@ function renderAuditTable() {
         const badgeText = isViol ? `${log.violations} VIOLATION${log.violations > 1 ? 'S' : ''}` : "COMPLIANT";
 
         const proofThumb = log.snapshotImage 
-            ? `<div class="audit-snapshot-thumb" onclick="openProofLightbox('${log.id}')" title="Click to view violation proof">
+            ? `<div class="audit-snapshot-thumb" ondblclick="openProofPage('${log.id}')" onclick="openProofPage('${log.id}')" title="Double-click or click to open full proof page in new tab">
                  <img src="${log.snapshotImage}" alt="Proof" />
-                 <span class="thumb-zoom-icon"><i data-lucide="maximize-2" style="width:12px; height:12px;"></i></span>
+                 <span class="thumb-zoom-icon"><i data-lucide="external-link" style="width:12px; height:12px;"></i></span>
                </div>`
-            : `<span style="font-size:11px; color:var(--text-disabled); font-style:italic;">No photo</span>`;
+            : `<div class="audit-snapshot-thumb" ondblclick="openProofPage('${log.id}')" onclick="openProofPage('${log.id}')" style="cursor:pointer;" title="Click to view incident details">
+                 <span style="font-size:10px; color:var(--text-disabled); font-style:italic; text-align:center;">View<br>Proof</span>
+               </div>`;
 
         return `
             <tr>
-                <td style="font-family:monospace; font-weight:700; color:var(--text-primary);">${log.id}</td>
+                <td style="font-family:monospace; font-weight:700; color:var(--text-primary); cursor:pointer;" onclick="openProofPage('${log.id}')" title="Open full incident record">${log.id}</td>
                 <td>${proofThumb}</td>
                 <td style="font-size:12px; color:var(--text-secondary);">${log.timestamp}</td>
                 <td style="font-weight:600;">${log.camera}</td>
@@ -2071,15 +2076,24 @@ function renderAuditTable() {
                     </div>
                 </td>
                 <td>
-                    <button class="btn-outlined" style="padding:2px 8px; font-size:11px;" onclick="deleteAuditLogEntry(${idx})">
-                        Delete
-                    </button>
+                    <div style="display:flex; gap:6px;">
+                        <button class="btn-outlined" style="padding:2px 8px; font-size:11px;" onclick="openProofPage('${log.id}')" title="Open full proof page in new tab">
+                            Proof
+                        </button>
+                        <button class="btn-outlined" style="padding:2px 8px; font-size:11px;" onclick="deleteAuditLogEntry(${idx})">
+                            Delete
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
     }).join("");
 
     if (window.lucide) window.lucide.createIcons();
+}
+
+function openProofPage(logId) {
+    window.open(`proof.html?id=${logId}`, '_blank');
 }
 
 let currentLightboxLogId = null;

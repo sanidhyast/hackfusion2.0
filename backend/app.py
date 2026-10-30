@@ -72,6 +72,10 @@ def serve_css():
 def serve_js():
     return FileResponse(FRONTEND_DIR / "app.js", media_type="application/javascript")
 
+@app.get("/proof.html", response_class=FileResponse)
+def serve_proof_page():
+    return FileResponse(FRONTEND_DIR / "proof.html")
+
 # Global Pipeline State
 PIPELINE: Optional[CompliancePipeline] = None
 CHECKPOINT_PATH = WORKDIR / "rfdetr_10ep_runs" / "checkpoint_best_ema.pth"

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Proof & Audit Report | PPE Compliance AI</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: var(--bg-dark, #0a0a0a);
+            color: var(--text-primary, #ffffff);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .proof-navbar {
+            background-color: var(--surface-card, #121212);
+            border-bottom: 1px solid var(--border-color, #262626);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .proof-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.5px;
+        }
+
+        .proof-brand-badge {
+            background: var(--accent, #A31C1B);
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .proof-container {
+            max-width: 1280px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 24px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex: 1;
+        }
+
+        .proof-header-card {
+            background: var(--surface-card, #121212);
+            border: 1px solid var(--border-color, #262626);
+            border-radius: 6px;
+            padding: 20px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .proof-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .proof-meta-card {
+            background: var(--surface-raised, #171717);
+            border: 1px solid var(--border-color, #262626);
+            border-radius: 4px;
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .proof-meta-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: var(--text-secondary, #a3a3a3);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .proof-meta-val {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-primary, #ffffff);
+        }
+
+        .proof-image-stage {
+            background: #050505;
+            border: 1px solid var(--border-color, #262626);
+            border-radius: 6px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            min-height: 480px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        .proof-image-stage img {
+            max-width: 100%;
+            max-height: 75vh;
+            border-radius: 4px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.8);
+            border: 1px solid #333333;
+            object-fit: contain;
+        }
+
+        .proof-empty-msg {
+            color: var(--text-disabled, #737373);
+            font-size: 13px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .proof-action-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        @media print {
+            .proof-navbar, .proof-action-row {
+                display: none !important;
+            }
+            body {
+                background: #fff;
+                color: #000;
+            }
+            .proof-header-card, .proof-meta-card, .proof-image-stage {
+                border-color: #ccc;
+                background: #fff;
+                color: #000;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation -->
+    <header class="proof-navbar">
+        <div class="proof-brand">
+            <span class="proof-brand-badge">PPE-AI</span>
+            <span>Enterprise Compliance Audit Proof</span>
+        </div>
+        <div class="proof-action-row">
+            <button class="btn-outlined" onclick="window.print()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="printer" style="width:14px; height:14px;"></i>
+                Print / Save PDF
+            </button>
+            <button class="btn-outlined" id="btn-download-img" onclick="downloadProofImage()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="download" style="width:14px; height:14px;"></i>
+                Download Proof JPEG
+            </button>
+            <a href="/" class="btn-primary" style="font-size:12px; padding:6px 16px; text-decoration:none; display:flex; align-items:center; gap:6px;">
+                <i data-lucide="arrow-left" style="width:14px; height:14px;"></i>
+                Back to Dashboard
+            </a>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="proof-container">
+
+        <!-- Incident Header Details Card -->
+        <section class="proof-header-card">
+            <div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span id="proof-id" style="font-family:monospace; font-size:20px; font-weight:800; color:var(--text-primary);">INC-000000</span>
+                    <span id="proof-status-badge" class="status-badge-chip violation">VIOLATION</span>
+                </div>
+                <p id="proof-verdict" style="margin:8px 0 0 0; font-size:13px; color:var(--text-secondary); max-width:700px; line-height:1.4;">
+                    Analyzing visual proof...
+                </p>
+            </div>
+            <div style="text-align:right;">
+                <div id="proof-timestamp" style="font-size:13px; font-weight:600; color:var(--text-primary);">--</div>
+                <div id="proof-source" style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Source: Photo Inspection</div>
+            </div>
+        </section>
+
+        <!-- KPI Breakdown Meta Grid -->
+        <section class="proof-meta-grid">
+            <div class="proof-meta-card">
+                <span class="proof-meta-label">Location / Room</span>
+                <span class="proof-meta-val" id="meta-location">Photo Inspection</span>
+            </div>
+            <div class="proof-meta-card">
+                <span class="proof-meta-label">Total Workers</span>
+                <span class="proof-meta-val" id="meta-total">0</span>
+            </div>
+            <div class="proof-meta-card">
+                <span class="proof-meta-label">Compliant Workers</span>
+                <span class="proof-meta-val" id="meta-compliant" style="color:var(--compliant-text, #22c55e);">0</span>
+            </div>
+            <div class="proof-meta-card">
+                <span class="proof-meta-label">Violations Flagged</span>
+                <span class="proof-meta-val" id="meta-violations" style="color:var(--accent, #A31C1B);">0</span>
+            </div>
+            <div class="proof-meta-card">
+                <span class="proof-meta-label">Compliance Rate</span>
+                <span class="proof-meta-val" id="meta-rate">100%</span>
+            </div>
+        </section>
+
+        <!-- High-Resolution Visual Evidence Display -->
+        <section class="proof-image-stage">
+            <div id="proof-empty-box" class="proof-empty-msg hidden">
+                <i data-lucide="image-off" style="width:48px; height:48px;"></i>
+                <span>No visual snapshot was attached to this audit record.</span>
+            </div>
+            <img id="proof-main-image" src="" alt="Violation Visual Proof" class="hidden">
+        </section>
+
+    </main>
+
+    <script>
+        let currentSnapshotUrl = null;
+        let currentIncidentId = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const params = new URLSearchParams(window.location.search);
+            const incidentId = params.get("id");
+            currentIncidentId = incidentId;
+
+            // Load audit logs from localStorage
+            let auditLogs = [];
+            try {
+                const stored = localStorage.getItem("ppe_audit_logs");
+                if (stored) auditLogs = JSON.parse(stored);
+            } catch (e) {
+                console.error("Failed to load audit logs", e);
+            }
+
+            const incident = auditLogs.find(l => l.id === incidentId) || auditLogs[0];
+
+            if (!incident) {
+                document.getElementById("proof-id").innerText = "Incident Not Found";
+                document.getElementById("proof-verdict").innerText = "The requested incident record was not found in the local audit database.";
+                document.getElementById("proof-empty-box").classList.remove("hidden");
+                if (window.lucide) window.lucide.createIcons();
+                return;
+            }
+
+            // Populate header
+            document.getElementById("proof-id").innerText = incident.id;
+            document.title = `${incident.id} - Violation Proof | PPE Compliance AI`;
+
+            const isViol = incident.violations > 0;
+            const badge = document.getElementById("proof-status-badge");
+            badge.className = `status-badge-chip ${isViol ? "violation" : "compliant"}`;
+            badge.innerText = isViol ? `${incident.violations} VIOLATION${incident.violations > 1 ? 'S' : ''}` : "COMPLIANT";
+
+            document.getElementById("proof-verdict").innerText = incident.verdict || "Full PPE Compliance Verified";
+            document.getElementById("proof-timestamp").innerText = incident.timestamp || new Date().toLocaleString();
+            document.getElementById("proof-source").innerText = `Source: ${incident.camera || "CCTV / Photo"}`;
+
+            // Populate KPIs
+            document.getElementById("meta-location").innerText = incident.camera || "Inspection View";
+            document.getElementById("meta-total").innerText = incident.totalWorkers || 0;
+            document.getElementById("meta-compliant").innerText = incident.compliant || 0;
+            document.getElementById("meta-violations").innerText = incident.violations || 0;
+
+            const total = incident.totalWorkers || 0;
+            const comp = incident.compliant || 0;
+            const rate = total > 0 ? Math.round((comp / total) * 100) : 100;
+            document.getElementById("meta-rate").innerText = `${rate}%`;
+
+            // Populate image
+            const imgEl = document.getElementById("proof-main-image");
+            const emptyEl = document.getElementById("proof-empty-box");
+
+            if (incident.snapshotImage) {
+                currentSnapshotUrl = incident.snapshotImage;
+                imgEl.src = incident.snapshotImage;
+                imgEl.classList.remove("hidden");
+                emptyEl.classList.add("hidden");
+            } else {
+                imgEl.classList.add("hidden");
+                emptyEl.classList.remove("hidden");
+                document.getElementById("btn-download-img").style.display = "none";
+            }
+
+            if (window.lucide) window.lucide.createIcons();
+        });
+
+        function downloadProofImage() {
+            if (!currentSnapshotUrl) return;
+            const a = document.createElement("a");
+            a.href = currentSnapshotUrl;
+            a.download = `incident_proof_${currentIncidentId || Date.now()}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+    </script>
+</body>
+</html>
