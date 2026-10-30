@@ -1,5 +1,5 @@
 """
-FastAPI Production Backend for PPE Compliance Detection (v1.2)
+FastAPI Production Backend for PPE Compliance Detection (v1.3)
 Provides RESTful APIs for image/video inspection, live metrics, and web dashboard.
 """
 

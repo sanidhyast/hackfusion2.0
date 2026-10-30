@@ -1035,35 +1035,38 @@ function getEvaluatedImageWorkers() {
             isCompliant = false;
             missingChips.push("No vest");
         }
-        // Check for carried helmet (flagged by backend OR spatial overlap with unassigned items)
-        let hasCarriedHelmet = (w.negative_flags && w.negative_flags.includes("helmet_under_arm")) ||
+        // Check for carried helmet (only evaluated if the worker does NOT already have a worn helmet on their head)
+        let hasCarriedHelmet = false;
+        if (!w.detected_ppe.helmet) {
+            hasCarriedHelmet = (w.negative_flags && w.negative_flags.includes("helmet_under_arm")) ||
                                (w.missing_ppe && w.missing_ppe.includes("helmet_under_arm"));
 
-        if (!hasCarriedHelmet && data.unassigned_items && data.unassigned_items.length && w.box) {
-            const [wx1, wy1, wx2, wy2] = w.box;
-            const ww = Math.max(1, wx2 - wx1);
-            const wh = Math.max(1, wy2 - wy1);
-            const czX1 = wx1 - 0.35 * ww;
-            const czY1 = wy1 + 0.18 * wh;
-            const czX2 = wx2 + 0.35 * ww;
-            const czY2 = wy2 + 0.30 * wh;
+            if (!hasCarriedHelmet && data.unassigned_items && data.unassigned_items.length && w.box) {
+                const [wx1, wy1, wx2, wy2] = w.box;
+                const ww = Math.max(1, wx2 - wx1);
+                const wh = Math.max(1, wy2 - wy1);
+                const czX1 = wx1 - 0.35 * ww;
+                const czY1 = wy1 + 0.18 * wh;
+                const czX2 = wx2 + 0.35 * ww;
+                const czY2 = wy2 + 0.30 * wh;
 
-            for (const item of data.unassigned_items) {
-                const cname = (item.class_name || "").toLowerCase();
-                const isCarriedCandidate = cname.includes("helmet") || cname.includes("hardhat");
-                if (isCarriedCandidate) {
-                    const [ix1, iy1, ix2, iy2] = item.box;
-                    const interX1 = Math.max(czX1, ix1);
-                    const interY1 = Math.max(czY1, iy1);
-                    const interX2 = Math.min(czX2, ix2);
-                    const interY2 = Math.min(czY2, iy2);
-                    const interW = Math.max(0, interX2 - interX1);
-                    const interH = Math.max(0, interY2 - interY1);
-                    const itemW = Math.max(1, ix2 - ix1);
-                    const itemH = Math.max(1, iy2 - iy1);
-                    if ((interW * interH) / (itemW * itemH) > 0.15) {
-                        hasCarriedHelmet = true;
-                        break;
+                for (const item of data.unassigned_items) {
+                    const cname = (item.class_name || "").toLowerCase();
+                    const isCarriedCandidate = cname.includes("helmet") || cname.includes("hardhat");
+                    if (isCarriedCandidate) {
+                        const [ix1, iy1, ix2, iy2] = item.box;
+                        const interX1 = Math.max(czX1, ix1);
+                        const interY1 = Math.max(czY1, iy1);
+                        const interX2 = Math.min(czX2, ix2);
+                        const interY2 = Math.min(czY2, iy2);
+                        const interW = Math.max(0, interX2 - interX1);
+                        const interH = Math.max(0, interY2 - interY1);
+                        const itemW = Math.max(1, ix2 - ix1);
+                        const itemH = Math.max(1, iy2 - iy1);
+                        if ((interW * interH) / (itemW * itemH) > 0.15) {
+                            hasCarriedHelmet = true;
+                            break;
+                        }
                     }
                 }
             }

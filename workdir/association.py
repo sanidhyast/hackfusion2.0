@@ -82,6 +82,31 @@ def compute_ioa(item_box: List[float], zone_box: List[float]) -> float:
     inter_area = compute_box_intersection(item_box, zone_box)
     return inter_area / item_area
 
+def nms_boxes(dets: List[Detection], iou_thresh: float = 0.35) -> List[Detection]:
+    """Non-maximum suppression to merge duplicate query detections from DETR/object detector."""
+    if not dets:
+        return []
+    sorted_dets = sorted(dets, key=lambda d: d.confidence, reverse=True)
+    kept = []
+    for d in sorted_dets:
+        discard = False
+        for k in kept:
+            xA = max(d.box[0], k.box[0])
+            yA = max(d.box[1], k.box[1])
+            xB = min(d.box[2], k.box[2])
+            yB = min(d.box[3], k.box[3])
+            inter = max(0.0, xB - xA) * max(0.0, yB - yA)
+            if inter > 0:
+                iou = inter / (d.area + k.area - inter)
+                min_area = min(d.area, k.area)
+                ioa = (inter / min_area) if min_area > 0 else 0.0
+                if iou >= iou_thresh or ioa >= 0.50:
+                    discard = True
+                    break
+        if not discard:
+            kept.append(d)
+    return kept
+
 def extract_anatomical_zones(person_box: List[float]) -> Dict[str, List[float]]:
     """
     Splits person bounding box into anatomical target zones:
@@ -147,9 +172,10 @@ class PPEAssociationEngine:
             if norm_name(d.class_name) == "person" and d.confidence >= self.min_person_conf
         ]
         
-        helmets = [d for d in detections if norm_name(d.class_name) == "helmet" and d.confidence >= self.min_ppe_conf]
-        vests = [d for d in detections if norm_name(d.class_name) == "vest" and d.confidence >= self.min_ppe_conf]
-        no_helmets = [d for d in detections if norm_name(d.class_name) == "no_helmet" and d.confidence >= self.min_ppe_conf]
+        # Merge duplicate query detections to prevent duplicate helmet ghost boxes leaking into unassigned items
+        helmets = nms_boxes([d for d in detections if norm_name(d.class_name) == "helmet" and d.confidence >= self.min_ppe_conf], iou_thresh=0.35)
+        vests = nms_boxes([d for d in detections if norm_name(d.class_name) == "vest" and d.confidence >= self.min_ppe_conf], iou_thresh=0.35)
+        no_helmets = nms_boxes([d for d in detections if norm_name(d.class_name) == "no_helmet" and d.confidence >= self.min_ppe_conf], iou_thresh=0.35)
         
         unassigned_items = []
         worker_statuses = []
@@ -234,10 +260,21 @@ class PPEAssociationEngine:
 
         for h in helmets:
             if id(h) not in associated_helmet_ids:
-                unassigned_items.append(h)
+                # Do not treat as unassigned if it overlaps an already associated worn helmet
+                overlaps_worn = any(
+                    compute_box_intersection(h.box, ws.detected_ppe["helmet"].box) / h.area > 0.25
+                    for ws in worker_statuses if ws.detected_ppe.get("helmet") and h.area > 0
+                )
+                if not overlaps_worn:
+                    unassigned_items.append(h)
         for v in vests:
             if id(v) not in associated_vest_ids:
-                unassigned_items.append(v)
+                overlaps_worn = any(
+                    compute_box_intersection(v.box, ws.detected_ppe["vest"].box) / v.area > 0.25
+                    for ws in worker_statuses if ws.detected_ppe.get("vest") and v.area > 0
+                )
+                if not overlaps_worn:
+                    unassigned_items.append(v)
 
         # Check if unassigned helmet is carried by a worker (under arm, in hand, or on lap)
         for ws in worker_statuses:
