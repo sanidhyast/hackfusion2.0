@@ -21,7 +21,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Add workdir to path
-WORKDIR = Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\workdir")
+BACKEND_DIR = Path(__file__).resolve().parent
+WORKDIR = BACKEND_DIR.parent / "workdir"
 if str(WORKDIR) not in sys.path:
     sys.path.insert(0, str(WORKDIR))
 
@@ -49,9 +50,9 @@ app.add_middleware(
 )
 
 # Output directories
-UPLOAD_DIR = Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\backend\uploads")
-PROCESSED_DIR = Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\backend\processed")
-FRONTEND_DIR = Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\frontend")
+UPLOAD_DIR = BACKEND_DIR / "uploads"
+PROCESSED_DIR = BACKEND_DIR / "processed"
+FRONTEND_DIR = BACKEND_DIR.parent / "frontend"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -91,7 +92,7 @@ if not CHECKPOINT_PATH.exists():
         WORKDIR / "yolov8_5class_runs" / "yolov8s_5class_finetuned" / "weights" / "last.pt",
         WORKDIR / "yolov8m_ppe.pt",
         WORKDIR / "sh17_yolov8m.pt",
-        Path(r"C:\Users\stpla\OneDrive\Desktop\HF2\yolov8s.pt")
+        BACKEND_DIR.parent / "yolov8s.pt"
     ]
     for cand in fallback_candidates:
         if cand.exists():
