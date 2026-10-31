@@ -118,6 +118,8 @@ function initNavigationTabs() {
                 } else if (state.currentTab === "cctv") {
                     syncAllCanvases();
                     updateCctvKpis();
+                } else if (state.currentTab === "map") {
+                    renderMcmtFloorPlan();
                 } else if (state.currentTab === "video") {
                     updateVideoKpis();
                 } else if (state.currentTab === "audit") {
@@ -371,7 +373,7 @@ async function confirmCameraConnection() {
         video.classList.remove("hidden");
         placeholder.classList.add("hidden");
 
-        meta.innerHTML = `<div class="live-dot" style="margin-right:2px; background:var(--accent);"></div> LIVE FEED`;
+        meta.innerHTML = `<div class="live-dot" style="margin-right:2px; background:var(--accent);"></div> Live`;
 
         video.onloadedmetadata = () => {
             video.play();
@@ -414,7 +416,7 @@ function disconnectCamera(camIndex) {
     if (tile) tile.classList.remove("has-violation");
     if (statusFooter) {
         statusFooter.className = "status-tag-chip standby";
-        statusFooter.innerText = "STANDBY";
+        statusFooter.innerText = "Standby";
     }
     if (workersFooter) workersFooter.innerText = "Workers: 0";
 
@@ -447,7 +449,7 @@ function attachTestFeedToCam(camIndex) {
     camObj.streaming = true;
     placeholder.classList.add("hidden");
     video.classList.remove("hidden");
-    meta.innerHTML = `<div class="live-dot" style="margin-right:2px; background:var(--accent);"></div> DEMO FEED`;
+    meta.innerHTML = `<div class="live-dot" style="margin-right:2px; background:var(--accent);"></div> Demo feed`;
 
     // Connect to canvas video simulation
     video.onloadedmetadata = () => {
@@ -941,7 +943,7 @@ function handleCamInferenceResult(camIndex, data) {
             statusFooter.style.backgroundColor = "";
             statusFooter.style.color = "";
             statusFooter.style.borderColor = "";
-            statusFooter.innerText = `🚨 ${primaryViolCount} VIOLATION`;
+            statusFooter.innerText = `${primaryViolCount} missing PPE`;
             if (tile) {
                 tile.classList.add("has-violation");
                 tile.classList.remove("has-mcmt-overlap");
@@ -951,7 +953,7 @@ function handleCamInferenceResult(camIndex, data) {
             statusFooter.style.backgroundColor = "rgba(249, 115, 22, 0.2)";
             statusFooter.style.color = "#fb923c";
             statusFooter.style.borderColor = "#f97316";
-            statusFooter.innerText = `⚠️ ${dupCount} MCMT OVERLAP`;
+            statusFooter.innerText = `${dupCount} also on another camera`;
             if (tile) {
                 tile.classList.remove("has-violation");
                 tile.classList.add("has-mcmt-overlap");
@@ -961,7 +963,7 @@ function handleCamInferenceResult(camIndex, data) {
             statusFooter.style.backgroundColor = "";
             statusFooter.style.color = "";
             statusFooter.style.borderColor = "";
-            statusFooter.innerText = isFocused ? "COMPLIANT" : (camObj.streaming ? "ONLINE" : "STANDBY");
+            statusFooter.innerText = isFocused ? "All wearing PPE" : (camObj.streaming ? "Live" : "Standby");
             if (tile) {
                 tile.classList.remove("has-violation");
                 tile.classList.remove("has-mcmt-overlap");
@@ -1006,7 +1008,7 @@ function handleCamInferenceResult(camIndex, data) {
                         otherStatus.style.backgroundColor = "";
                         otherStatus.style.color = "";
                         otherStatus.style.borderColor = "";
-                        otherStatus.innerText = `🚨 ${otherPrimary} VIOLATION`;
+                        otherStatus.innerText = `${otherPrimary} missing PPE`;
                         if (otherTile) {
                             otherTile.classList.add("has-violation");
                             otherTile.classList.remove("has-mcmt-overlap");
@@ -1016,7 +1018,7 @@ function handleCamInferenceResult(camIndex, data) {
                         otherStatus.style.backgroundColor = "rgba(249, 115, 22, 0.2)";
                         otherStatus.style.color = "#fb923c";
                         otherStatus.style.borderColor = "#f97316";
-                        otherStatus.innerText = `⚠️ ${otherDup} MCMT OVERLAP`;
+                        otherStatus.innerText = `${otherDup} also on another camera`;
                         if (otherTile) {
                             otherTile.classList.remove("has-violation");
                             otherTile.classList.add("has-mcmt-overlap");
@@ -1151,18 +1153,14 @@ function renderCctvVerdictsList(workers) {
 
     if (!isStreaming) {
         container.innerHTML = `
-            <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
-                ${camObj.label} is currently disconnected.<br>Click 'Select Camera Device' on screen to start feed.
-            </div>
+            <div class="list-empty">${camObj.label} is not connected. Use "Connect camera" on its screen to start the feed.</div>
         `;
         return;
     }
 
     if (!camWorkers || camWorkers.length === 0) {
         container.innerHTML = `
-            <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
-                Camera feed active. No workers currently in view.
-            </div>
+            <div class="list-empty">Camera is live. No workers in view right now.</div>
         `;
         return;
     }
@@ -1171,7 +1169,7 @@ function renderCctvVerdictsList(workers) {
         const isComp = w.is_compliant;
         const isDup = !!w.is_room_duplicate;
         const badgeClass = isComp ? "compliant" : (isDup ? "warning" : "violation");
-        const badgeText = isComp ? "COMPLIANT" : (isDup ? `OVERLAP (CAM-0${w.duplicate_of_cam})` : "VIOLATION");
+        const badgeText = isComp ? "Wearing PPE" : (isDup ? `Also on CAM-0${w.duplicate_of_cam}` : "Missing PPE");
         const conf = Math.round(w.confidence * 100);
 
         let chipsHtml = "";
@@ -1179,23 +1177,21 @@ function renderCctvVerdictsList(workers) {
             const hasH = !!(w.detected_ppe && w.detected_ppe.helmet);
             const hasV = !!(w.detected_ppe && w.detected_ppe.vest);
             if (hasH && hasV) {
-                chipsHtml = `<span class="compliant-pill-chip">Full Helmet & Vest</span>`;
+                chipsHtml = `<span class="compliant-pill-chip">Hard hat and vest</span>`;
             } else if (hasH) {
-                chipsHtml = `<span class="compliant-pill-chip">Helmet Worn</span>`;
+                chipsHtml = `<span class="compliant-pill-chip">Hard hat</span>`;
             } else if (hasV) {
-                chipsHtml = `<span class="compliant-pill-chip" style="background:rgba(234,179,8,0.12); color:#FACC15; border-color:rgba(234,179,8,0.3);">Vest Worn (No Helmet)</span>`;
+                chipsHtml = `<span class="compliant-pill-chip chip-note">Vest only, hard hat not required</span>`;
             } else {
-                chipsHtml = `<span class="compliant-pill-chip" style="background:#262626; color:#A3A3A3; border-color:#404040;">Rules Met</span>`;
+                chipsHtml = `<span class="compliant-pill-chip">No PPE required here</span>`;
             }
         } else if (isDup) {
             chipsHtml = (w.missing_chips || []).map(c => 
-                `<span class="violation-pill-chip" style="background:rgba(249,115,22,0.15); color:#FB923C; border-color:rgba(249,115,22,0.4);">${c}</span>`
-            ).join("") + `<span class="compliant-pill-chip" style="background:rgba(249,115,22,0.1); color:#F97316; border-color:#F97316;">MCMT De-duplicated</span>`;
+                `<span class="violation-pill-chip chip-overlap">${c}</span>`
+            ).join("") + `<span class="compliant-pill-chip chip-overlap">Counted once</span>`;
         } else {
             chipsHtml = (w.missing_chips || []).map(c => `<span class="violation-pill-chip">${c}</span>`).join("");
         }
-
-        const customBadgeStyle = isDup ? `style="background:rgba(249, 115, 22, 0.2); color:#fb923c; border:1px solid #f97316;"` : '';
 
         return `
             <div class="worker-verdict-card">
@@ -1204,11 +1200,11 @@ function renderCctvVerdictsList(workers) {
                         <span class="worker-id-badge">Worker #${w.worker_id}${w.global_worker_id ? ` (Global #${w.global_worker_id})` : ''}</span>
                         <span class="worker-conf-score">${conf}%</span>
                     </div>
-                    <span class="status-badge-chip ${badgeClass}" ${customBadgeStyle}>${badgeText}</span>
+                    <span class="status-badge-chip ${badgeClass}">${badgeText}</span>
                 </div>
                 <div class="worker-tags-row">${chipsHtml}</div>
                 <div class="card-bottom-row">
-                    <span>${camObj.label} • Live Stream</span>
+                    <span>Your review</span>
                     <select class="reviewer-dropdown" onclick="event.stopPropagation()" onchange="modifyCctvVerdict('${camObj.label}', ${w.worker_id}, this.value)">
                         <option value="confirm" ${(!w.reviewer_status || w.reviewer_status === 'confirm') ? 'selected' : ''}>Confirmed</option>
                         <option value="false_alarm" ${w.reviewer_status === 'false_alarm' ? 'selected' : ''}>Dismiss as False Alarm</option>
@@ -1244,7 +1240,7 @@ function modifyCctvVerdict(cameraName, workerId, action) {
 function updateCctvActiveSummary() {
     const activeCount = Object.values(state.activeCameras).filter(c => c.streaming).length;
     const el = document.getElementById("cctv-active-cams-count");
-    if (el) el.innerText = `${activeCount} of 4 Cameras Active`;
+    if (el) el.innerText = `${activeCount} of 4 cameras live`;
 }
 
 function updateLiveBadge() {
@@ -1253,10 +1249,10 @@ function updateLiveBadge() {
     const text = document.getElementById("top-live-text");
     if (activeCount > 0) {
         badge.classList.add("active");
-        text.innerText = "LIVE";
+        text.innerText = `${activeCount} camera${activeCount > 1 ? 's' : ''} live`;
     } else {
         badge.classList.remove("active");
-        text.innerText = "STANDBY";
+        text.innerText = "Cameras off";
     }
 }
 
@@ -1302,7 +1298,7 @@ function toggleQuadFocus(tileNum) {
                         statusFooter.style.backgroundColor = "";
                         statusFooter.style.color = "";
                         statusFooter.style.borderColor = "";
-                        statusFooter.innerText = `🚨 ${primaryViol} VIOLATION`;
+                        statusFooter.innerText = `${primaryViol} missing PPE`;
                         if (tileEl) {
                             tileEl.classList.add("has-violation");
                             tileEl.classList.remove("has-mcmt-overlap");
@@ -1312,7 +1308,7 @@ function toggleQuadFocus(tileNum) {
                         statusFooter.style.backgroundColor = "rgba(249, 115, 22, 0.2)";
                         statusFooter.style.color = "#fb923c";
                         statusFooter.style.borderColor = "#f97316";
-                        statusFooter.innerText = `⚠️ ${dupViol} MCMT OVERLAP`;
+                        statusFooter.innerText = `${dupViol} also on another camera`;
                         if (tileEl) {
                             tileEl.classList.remove("has-violation");
                             tileEl.classList.add("has-mcmt-overlap");
@@ -1322,7 +1318,7 @@ function toggleQuadFocus(tileNum) {
                         statusFooter.style.backgroundColor = "";
                         statusFooter.style.color = "";
                         statusFooter.style.borderColor = "";
-                        statusFooter.innerText = "COMPLIANT";
+                        statusFooter.innerText = "All wearing PPE";
                         if (tileEl) {
                             tileEl.classList.remove("has-violation");
                             tileEl.classList.remove("has-mcmt-overlap");
@@ -1359,7 +1355,7 @@ function updateCctvSidebarForFocus() {
 
     const titleEl = document.getElementById("cctv-focused-cam-title");
     const roomEl = document.getElementById("cctv-focused-cam-room");
-    if (titleEl) titleEl.innerText = `${camObj.label} Rules`;
+    if (titleEl) titleEl.innerText = camObj.label;
     if (roomEl) roomEl.innerText = camObj.roomName || `Camera ${camIndex}`;
 
     // Sync button states with this camera's rules
@@ -1450,11 +1446,11 @@ function reEvaluateCameraDetections(camIndex) {
     if (statusFooter) {
         if (violCount > 0) {
             statusFooter.className = "status-tag-chip violation";
-            statusFooter.innerText = `🚨 ${violCount} VIOLATION`;
+            statusFooter.innerText = `${violCount} missing PPE`;
             if (tile) tile.classList.add("has-violation");
         } else {
             statusFooter.className = "status-tag-chip compliant";
-            statusFooter.innerText = "COMPLIANT";
+            statusFooter.innerText = "All wearing PPE";
             if (tile) tile.classList.remove("has-violation");
         }
     }
@@ -1904,10 +1900,10 @@ function renderMcmtFloorPlan() {
     const statOverlaps = document.getElementById("mcmt-stat-overlaps");
     const statTransits = document.getElementById("mcmt-stat-transits");
 
-    if (statGlobals) statGlobals.innerHTML = `<strong style="color:#fff;">${globalWorkerSet.size}</strong> Global Workers`;
-    if (statOverlaps) statOverlaps.innerHTML = `<strong style="color:#f97316;">${overlaps.length}</strong> Overlap Matched (Orange)`;
+    if (statGlobals) statGlobals.innerHTML = `<strong>${globalWorkerSet.size}</strong> workers tracked`;
+    if (statOverlaps) statOverlaps.innerHTML = `<strong>${overlaps.length}</strong> seen by two cameras`;
     if (statTransits && state.mcmtCoordinator) {
-        statTransits.innerHTML = `<strong style="color:#38bdf8;">${state.mcmtCoordinator.plausibleTransitsCount}</strong> Plausible Transits`;
+        statTransits.innerHTML = `<strong>${state.mcmtCoordinator.plausibleTransitsCount}</strong> moved between cameras`;
     }
 }
 
@@ -2144,7 +2140,7 @@ function updateImageMetaText(item) {
     const total = state.imageQueue ? state.imageQueue.length : 1;
     const idxStr = total > 1 ? ` (${state.currentImageIndex + 1} of ${total})` : '';
     const workers = item.detections ? item.detections.total_workers : 0;
-    meta.innerText = `${item.name}${idxStr} • ${workers} Workers Evaluated • ${state.latencyMs.toFixed(1)} ms`;
+    meta.innerText = `${item.name}${idxStr}: ${workers} worker${workers !== 1 ? 's' : ''} checked in ${state.latencyMs.toFixed(0)} ms`;
 }
 
 async function loadImageSample(filename) {
@@ -2275,9 +2271,7 @@ function renderImageVerdictsList(workers) {
 
     if (!workers || workers.length === 0) {
         container.innerHTML = `
-            <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
-                Upload a photo or select a test sample to evaluate workers.
-            </div>
+            <div class="list-empty">Add a photo to see each worker's result here.</div>
         `;
         return;
     }
@@ -2285,7 +2279,7 @@ function renderImageVerdictsList(workers) {
     container.innerHTML = workers.map(w => {
         const isSelected = state.selectedWorkerId === w.worker_id;
         const badgeClass = w.is_compliant ? "compliant" : "violation";
-        const badgeText = w.is_compliant ? "COMPLIANT" : "VIOLATION";
+        const badgeText = w.is_compliant ? "Wearing PPE" : "Missing PPE";
         const confPct = Math.round(w.confidence * 100);
 
         let chipsHtml = "";
@@ -2293,13 +2287,13 @@ function renderImageVerdictsList(workers) {
             const hasH = !!(w.detected_ppe && w.detected_ppe.helmet);
             const hasV = !!(w.detected_ppe && w.detected_ppe.vest);
             if (hasH && hasV) {
-                chipsHtml = `<span class="compliant-pill-chip">Full Helmet & Vest</span>`;
+                chipsHtml = `<span class="compliant-pill-chip">Hard hat and vest</span>`;
             } else if (hasH) {
-                chipsHtml = `<span class="compliant-pill-chip">Helmet Worn</span>`;
+                chipsHtml = `<span class="compliant-pill-chip">Hard hat</span>`;
             } else if (hasV) {
-                chipsHtml = `<span class="compliant-pill-chip" style="background:rgba(234,179,8,0.12); color:#FACC15; border-color:rgba(234,179,8,0.3);">Vest Worn (No Helmet)</span>`;
+                chipsHtml = `<span class="compliant-pill-chip chip-note">Vest only, hard hat not required</span>`;
             } else {
-                chipsHtml = `<span class="compliant-pill-chip" style="background:#262626; color:#A3A3A3; border-color:#404040;">No PPE (Rules Inactive)</span>`;
+                chipsHtml = `<span class="compliant-pill-chip">No PPE required here</span>`;
             }
         } else {
             chipsHtml = (w.missing_chips || []).map(chip => `<span class="violation-pill-chip">${chip}</span>`).join("");
@@ -2318,7 +2312,7 @@ function renderImageVerdictsList(workers) {
                 </div>
                 <div class="worker-tags-row">${chipsHtml}</div>
                 <div class="card-bottom-row">
-                    <span>Photo Review</span>
+                    <span>Your review</span>
                     <select class="reviewer-dropdown" onclick="event.stopPropagation()" onchange="modifyImageVerdict(${w.worker_id}, this.value)">
                         <option value="confirm" ${revStatus === 'confirm' ? 'selected' : ''}>Confirmed</option>
                         <option value="false_positive" ${revStatus === 'false_positive' ? 'selected' : ''}>Dismiss as False Alarm</option>
@@ -2606,7 +2600,7 @@ async function inspectUploadedVideo(file) {
     videoEl.src = localUrl;
     videoEl.classList.remove("hidden");
     if (dropzone) dropzone.classList.add("hidden");
-    metaText.innerText = `${file.name} • Processing frames through RF-DETR model on RTX 3050...`;
+    metaText.innerText = `Checking ${file.name} frame by frame…`;
 
     const formData = new FormData();
     formData.append("file", file);
@@ -2626,7 +2620,7 @@ async function inspectUploadedVideo(file) {
             state.currentVideoData = data;
             const latency = performance.now() - t0;
 
-            metaText.innerText = `${file.name} • ${data.total_frames_processed} Frames Analyzed • ${data.cumulative_violations_spotted} Violations Flagged • ${(latency/1000).toFixed(1)}s`;
+            metaText.innerText = `${file.name}: ${data.total_frames_processed} frames checked, ${data.cumulative_violations_spotted} with missing PPE, took ${(latency/1000).toFixed(1)} s`;
 
             reFilterVideoIncidents();
             const evaluated = getEvaluatedVideoIncidents();
@@ -2737,9 +2731,7 @@ function renderVideoVerdictsList(incidents) {
     if (!incidents || incidents.length === 0) {
         if (badge) badge.innerText = "0 Incidents";
         container.innerHTML = `
-            <div style="padding:32px 12px; text-align:center; color:var(--text-disabled); font-size:12px;">
-                Upload a video to audit compliance across frames.
-            </div>
+            <div class="list-empty">Choose a video. Each flagged moment appears here, and clicking one jumps the video to it.</div>
         `;
         return;
     }
@@ -2749,19 +2741,19 @@ function renderVideoVerdictsList(incidents) {
     container.innerHTML = incidents.map((inc, idx) => {
         const isComp = inc.is_compliant;
         const badgeClass = isComp ? "compliant" : "violation";
-        const badgeText = isComp ? "COMPLIANT" : "VIOLATION";
+        const badgeText = isComp ? "Wearing PPE" : "Missing PPE";
         const confPct = Math.round(inc.confidence * 100);
         const revStatus = inc.reviewer_status || "confirm";
 
         const chipsHtml = isComp
-            ? `<span class="compliant-pill-chip">Full Helmet & Vest</span>`
+            ? `<span class="compliant-pill-chip">Hard hat and vest</span>`
             : (inc.missing_chips || []).map(chip => `<span class="violation-pill-chip">${chip}</span>`).join("");
 
         return `
             <div class="worker-verdict-card" onclick="seekVideoToTime(${inc.timestamp_sec})" title="Click to seek video to ${inc.timestamp_sec}s">
                 <div class="card-top-row">
                     <div class="worker-meta-left">
-                        <span class="worker-id-badge">Frame #${inc.frame} (${inc.timestamp_sec}s)</span>
+                        <span class="worker-id-badge">At ${inc.timestamp_sec}s (frame ${inc.frame})</span>
                         <span class="worker-conf-score">${confPct}%</span>
                     </div>
                     <span class="status-badge-chip ${badgeClass}">${badgeText}</span>
@@ -3295,9 +3287,7 @@ function renderAuditTable() {
     if (!state.auditLogs || state.auditLogs.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" style="text-align:center; color:var(--text-disabled); padding:32px;">
-                    No audit log incidents recorded yet. Perform inspections in CCTV, Image, or Video tabs and click 'Add to Audit Report'.
-                </td>
+                <td colspan="9" class="table-empty">No incidents logged yet. Use "Log incident" on the camera, photo, or video screens.</td>
             </tr>
         `;
         return;
@@ -3306,7 +3296,7 @@ function renderAuditTable() {
     tbody.innerHTML = state.auditLogs.map((log, idx) => {
         const isViol = log.violations > 0;
         const badgeClass = isViol ? "violation" : "compliant";
-        const badgeText = isViol ? `${log.violations} VIOLATION${log.violations > 1 ? 'S' : ''}` : "COMPLIANT";
+        const badgeText = isViol ? "Missing PPE" : "Wearing PPE";
         const thumbUrl = log.snapshotImage || `/media/snapshots/${log.id}.jpg`;
 
         const proofThumb = `<div class="audit-snapshot-thumb" onclick="openProofLightbox('${log.id}')" ondblclick="openProofPage('${log.id}')" title="Click to view proof modal | Double-click for full page">
@@ -3316,28 +3306,25 @@ function renderAuditTable() {
 
         return `
             <tr>
-                <td style="font-family:monospace; font-weight:700; color:var(--text-primary); cursor:pointer;" onclick="openProofLightbox('${log.id}')" title="Click to view proof">${log.id}</td>
+                <td><button class="audit-id" onclick="openProofLightbox('${log.id}')" title="View evidence">${log.id}</button></td>
                 <td>${proofThumb}</td>
-                <td style="font-size:12px; color:var(--text-secondary);">${log.timestamp}</td>
-                <td style="font-weight:600;">${log.camera}</td>
-                <td>${log.totalWorkers}</td>
-                <td style="color:var(--compliant-text); font-weight:600;">${log.compliant}</td>
-                <td style="color:${isViol ? 'var(--accent)' : 'var(--text-secondary)'}; font-weight:700;">${log.violations}</td>
+                <td class="audit-muted">${log.timestamp}</td>
+                <td class="audit-strong">${log.camera}</td>
+                <td class="num">${log.totalWorkers}</td>
+                <td class="num">${log.compliant}</td>
+                <td class="num ${isViol ? 'audit-viol' : ''}">${log.violations}</td>
                 <td>
-                    <div style="display:flex; align-items:center; gap:8px;">
+                    <div class="audit-result">
                         <span class="status-badge-chip ${badgeClass}">${badgeText}</span>
-                        <span style="font-size:12px; color:var(--text-secondary);">${log.verdict}</span>
+                        <span class="audit-muted">${log.verdict}</span>
                     </div>
                 </td>
                 <td>
-                    <div style="display:flex; gap:6px;">
-                        <button class="btn-primary" style="padding:2px 8px; font-size:11px;" onclick="openProofLightbox('${log.id}')" title="Open Proof Lightbox Modal">
-                            Proof
+                    <div class="audit-actions">
+                        <button class="btn-outlined btn-sm" onclick="openProofPage('${log.id}')" title="Open the evidence page in a new tab">
+                            Open
                         </button>
-                        <button class="btn-outlined" style="padding:2px 8px; font-size:11px;" onclick="openProofPage('${log.id}')" title="Open full proof page in new tab">
-                            Full Page
-                        </button>
-                        <button class="btn-outlined" style="padding:2px 8px; font-size:11px;" onclick="deleteAuditLogEntry(${idx})">
+                        <button class="btn-outlined btn-sm" onclick="deleteAuditLogEntry(${idx})">
                             Delete
                         </button>
                     </div>
@@ -3378,7 +3365,7 @@ function openProofLightbox(logId) {
 
     const imgSrc = log.snapshotImage || `/media/snapshots/${log.id}.jpg`;
     if (idEl) idEl.innerText = log.id;
-    if (metaEl) metaEl.innerText = `${log.camera} • ${log.violations > 0 ? log.violations + ' Violation(s)' : 'Compliant'}`;
+    if (metaEl) metaEl.innerText = `${log.camera}, ${log.violations > 0 ? log.violations + ' missing PPE' : 'all wearing PPE'}`;
     if (img) {
         img.src = imgSrc;
         img.onerror = () => {
