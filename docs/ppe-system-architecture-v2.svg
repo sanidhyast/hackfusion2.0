@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">PPE Compliance AI — system architecture</title>
+  <desc id="desc">Input sources feed the browser client. The browser sends frames and files to FastAPI, which calls the YOLOv8s and spatial association pipeline. Verdicts return to the browser. The browser keeps an audit log, while FastAPI saves evidence snapshots and incident metadata to local files.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#68bdb4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="muted-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M1 1 L9 5 L1 9" fill="none" stroke="#7f94a1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .bg { fill:#0c151c; }
+      .card { fill:#111e27; stroke:#32444e; stroke-width:1.5; }
+      .card-accent { fill:#11252b; stroke:#4a9f9b; stroke-width:1.7; }
+      .small-card { fill:#12212a; stroke:#364d56; stroke-width:1.4; }
+      .title { fill:#edf5f5; font:600 39px Inter,Arial,sans-serif; letter-spacing:-1.2px; }
+      .sub { fill:#9aadb5; font:400 17px Inter,Arial,sans-serif; }
+      .eyebrow { fill:#74beb6; font:700 13px Inter,Arial,sans-serif; letter-spacing:2px; }
+      .heading { fill:#f3f7f6; font:650 24px Inter,Arial,sans-serif; letter-spacing:-.35px; }
+      .body { fill:#bfd0d2; font:400 18px Inter,Arial,sans-serif; }
+      .small { fill:#94aab1; font:400 16px Inter,Arial,sans-serif; }
+      .arrow-label { fill:#9bb8bc; font:500 14px Inter,Arial,sans-serif; letter-spacing:.15px; }
+      .index { fill:#88d2c7; font:700 14px Inter,Arial,sans-serif; }
+      .rule { stroke:#2b3e47; stroke-width:1; }
+      .flow { fill:none; stroke:#68bdb4; stroke-width:2.2; marker-end:url(#arrow); }
+      .muted-flow { fill:none; stroke:#7f94a1; stroke-width:1.8; marker-end:url(#muted-arrow); }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="900"/>
+  <rect x="62" y="69" width="6" height="55" rx="3" fill="#55b6aa"/>
+  <text x="91" y="91" class="eyebrow">SYSTEM DESIGN</text>
+  <text x="91" y="132" class="title">PPE Compliance AI</text>
+  <text x="91" y="162" class="sub">Current implementation · four-camera monitoring, inspection and audit</text>
+  <line x1="62" y1="195" x2="1538" y2="195" class="rule"/>
+
+  <text x="62" y="236" class="eyebrow">REQUEST PATH</text>
+
+  <!-- 1. Sources -->
+  <rect x="62" y="264" width="278" height="284" rx="15" class="card"/>
+  <text x="87" y="299" class="index">01 / SOURCE</text>
+  <text x="87" y="341" class="heading">Inputs</text>
+  <line x1="87" y1="362" x2="315" y2="362" class="rule"/>
+  <text x="87" y="402" class="body">Browser cameras × 4</text>
+  <text x="87" y="441" class="body">Image files</text>
+  <text x="87" y="480" class="body">Video files</text>
+  <text x="87" y="520" class="small">Operator-provided media</text>
+
+  <!-- 2. Browser -->
+  <rect x="415" y="264" width="306" height="284" rx="15" class="card-accent"/>
+  <text x="440" y="299" class="index">02 / CLIENT</text>
+  <text x="440" y="341" class="heading">Web dashboard</text>
+  <line x1="440" y1="362" x2="696" y2="362" class="rule"/>
+  <text x="440" y="402" class="body">Capture latest frames</text>
+  <text x="440" y="441" class="body">Upload image / video</text>
+  <text x="440" y="480" class="body">Per-camera PPE rules</text>
+  <text x="440" y="520" class="small">Live grid + inspection views</text>
+
+  <!-- 3. API -->
+  <rect x="796" y="264" width="306" height="284" rx="15" class="card"/>
+  <text x="821" y="299" class="index">03 / SERVICE</text>
+  <text x="821" y="341" class="heading">FastAPI backend</text>
+  <line x1="821" y1="362" x2="1077" y2="362" class="rule"/>
+  <text x="821" y="402" class="body">Detection endpoints</text>
+  <text x="821" y="441" class="body">Decode + prepare media</text>
+  <text x="821" y="480" class="body">Snapshot endpoint</text>
+  <text x="821" y="520" class="small">JSON + annotated media</text>
+
+  <!-- 4. Inference -->
+  <rect x="1177" y="264" width="361" height="284" rx="15" class="card-accent"/>
+  <text x="1202" y="299" class="index">04 / INFERENCE</text>
+  <text x="1202" y="341" class="heading">PPE decision pipeline</text>
+  <line x1="1202" y1="362" x2="1513" y2="362" class="rule"/>
+  <text x="1202" y="402" class="body">YOLOv8s detection</text>
+  <text x="1202" y="441" class="body">Worker–PPE association</text>
+  <text x="1202" y="480" class="body">Rule evaluation</text>
+  <text x="1202" y="520" class="small">Per-worker verdicts</text>
+
+  <path d="M340 406 H400" class="flow"/>
+  <text x="348" y="391" class="arrow-label">media</text>
+  <path d="M721 406 H781" class="flow"/>
+  <text x="723" y="391" class="arrow-label">HTTP</text>
+  <path d="M1102 406 H1162" class="flow"/>
+  <text x="1112" y="391" class="arrow-label">frames</text>
+
+  <!-- Return path -->
+  <path d="M1358 548 V591 H568 V548" class="muted-flow"/>
+  <rect x="814" y="572" width="288" height="39" rx="19" fill="#172630" stroke="#405862"/>
+  <text x="958" y="597" class="arrow-label" text-anchor="middle">verdicts + annotated frames</text>
+
+  <line x1="62" y1="633" x2="1538" y2="633" class="rule"/>
+  <text x="62" y="674" class="eyebrow">EVIDENCE PATH</text>
+
+  <!-- Browser audit cache and export -->
+  <rect x="415" y="705" width="306" height="130" rx="14" class="small-card"/>
+  <text x="440" y="746" class="heading">Audit view</text>
+  <text x="440" y="780" class="small">Browser localStorage</text>
+  <text x="440" y="807" class="small">CSV / JSON export</text>
+  <path d="M568 548 V690" class="muted-flow"/>
+
+  <!-- Backend persisted evidence -->
+  <rect x="796" y="705" width="306" height="130" rx="14" class="small-card"/>
+  <text x="821" y="746" class="heading">Saved evidence</text>
+  <text x="821" y="780" class="small">Snapshot images + incident JSON</text>
+  <text x="821" y="807" class="small">Local processed files</text>
+  <path d="M949 548 V690" class="muted-flow"/>
+
+  <text x="1538" y="865" class="small" text-anchor="end">Implementation view · st branch</text>
+</svg>
