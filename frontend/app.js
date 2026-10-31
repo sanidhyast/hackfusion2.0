@@ -3299,13 +3299,13 @@ function renderAuditTable() {
         const badgeText = isViol ? "Missing PPE" : "Wearing PPE";
         const thumbUrl = log.snapshotImage || `/media/snapshots/${log.id}.jpg`;
 
-        const proofThumb = `<div class="audit-snapshot-thumb" onclick="openProofLightbox('${log.id}')" ondblclick="openProofPage('${log.id}')" title="Click to view proof modal | Double-click for full page">
+        const proofThumb = `<div class="audit-snapshot-thumb" onclick="openProofLightbox('${log.id}')" title="View evidence">
              <img src="${thumbUrl}" onerror="this.src='/media/snapshots/${log.id}.jpg'" alt="Proof" />
              <span class="thumb-zoom-icon"><i data-lucide="maximize-2" style="width:12px; height:12px;"></i></span>
            </div>`;
 
         return `
-            <tr>
+            <tr class="audit-row" ondblclick="if(!event.target.closest('.audit-actions'))openProofPage('${log.id}')" title="Double-click to open full details">
                 <td><button class="audit-id" onclick="openProofLightbox('${log.id}')" title="View evidence">${log.id}</button></td>
                 <td>${proofThumb}</td>
                 <td class="audit-muted">${log.timestamp}</td>
@@ -3316,7 +3316,7 @@ function renderAuditTable() {
                 <td>
                     <div class="audit-result">
                         <span class="status-badge-chip ${badgeClass}">${badgeText}</span>
-                        <span class="audit-muted">${log.verdict}</span>
+                        <span class="audit-verdict" title="${String(log.verdict || '').replace(/"/g, '&quot;')}">${log.verdict}</span>
                     </div>
                 </td>
                 <td>
@@ -3324,8 +3324,8 @@ function renderAuditTable() {
                         <button class="btn-outlined btn-sm" onclick="openProofPage('${log.id}')" title="Open the evidence page in a new tab">
                             Open
                         </button>
-                        <button class="btn-outlined btn-sm" onclick="deleteAuditLogEntry(${idx})">
-                            Delete
+                        <button class="btn-outlined btn-sm btn-danger" onclick="deleteAuditLogEntry(${idx})" title="Delete this incident">
+                            <i data-lucide="trash-2"></i> Delete
                         </button>
                     </div>
                 </td>
@@ -3400,6 +3400,7 @@ function downloadProofImage() {
 
 function deleteAuditLogEntry(idx) {
     if (state.auditLogs && state.auditLogs[idx]) {
+        if (!confirm(`Delete incident ${state.auditLogs[idx].id}? This can't be undone.`)) return;
         state.auditLogs.splice(idx, 1);
         saveAuditLogs();
         renderAuditTable();
