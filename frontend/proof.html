@@ -3,396 +3,291 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Incident Proof & Audit Report | PPE Compliance AI</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Incident evidence | SafeSight AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=18.0">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body {
-            background-color: var(--bg-dark, #0a0a0a);
-            color: var(--text-primary, #ffffff);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
+        body.proof-page {
+            display: block;
+            background: var(--concrete);
         }
 
-        .proof-navbar {
-            background-color: var(--surface-card, #121212);
-            border-bottom: 1px solid var(--border-color, #262626);
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .proof-topbar {
             position: sticky;
             top: 0;
             z-index: 50;
-        }
-
-        .proof-brand {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 10px;
-            font-weight: 700;
-            font-size: 14px;
-            letter-spacing: 0.5px;
+            gap: 12px;
+            padding: 10px 32px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--rule);
         }
 
-        .proof-brand-badge {
-            background: var(--accent, #A31C1B);
-            color: #fff;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            font-weight: 800;
-        }
+        .proof-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
+        .proof-action-row a { text-decoration: none; }
 
         .proof-container {
             max-width: 1280px;
-            width: 100%;
             margin: 0 auto;
-            padding: 24px;
-            box-sizing: border-box;
+            padding: 24px 32px 48px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            flex: 1;
-        }
-
-        .proof-header-card {
-            background: var(--surface-card, #121212);
-            border: 1px solid var(--border-color, #262626);
-            border-radius: 6px;
-            padding: 20px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
             gap: 16px;
         }
 
-        .proof-meta-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 12px;
-        }
+        .proof-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .proof-title-row .status-badge-chip { font-size: 14px; padding: 2px 10px; }
 
-        .proof-meta-card {
-            background: var(--surface-raised, #171717);
-            border: 1px solid var(--border-color, #262626);
-            border-radius: 4px;
-            padding: 12px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .proof-meta-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            color: var(--text-secondary, #a3a3a3);
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-
-        .proof-meta-val {
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--text-primary, #ffffff);
-        }
-
-        /* Section Cards */
-        .proof-section-card {
-            background: var(--surface-card, #121212);
-            border: 1px solid var(--border-color, #262626);
-            border-radius: 6px;
-            padding: 20px 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        .proof-section-title {
-            font-size: 13px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-            color: var(--text-secondary, #a3a3a3);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Rules Grid */
-        .rules-badge-grid {
+        .proof-facts {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 4px 24px;
+            margin-top: 6px;
+            color: var(--ink-2);
         }
 
-        .rule-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            border: 1px solid var(--border-color, #262626);
-        }
+        .proof-facts dt { display: inline; color: var(--ink-3); }
+        .proof-facts dt::after { content: " "; }
+        .proof-facts dd { display: inline; color: var(--graphite); font-weight: 500; }
 
-        .rule-badge.active {
-            background: rgba(163, 28, 27, 0.15);
-            border-color: var(--accent, #A31C1B);
-            color: #ff9999;
-        }
-
-        .rule-badge.inactive {
-            background: #171717;
-            border-color: #262626;
-            color: #737373;
-            opacity: 0.65;
-        }
-
-        /* Workers Grid */
-        .worker-findings-grid {
+        .proof-layout {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 14px;
+            grid-template-columns: minmax(0, 1fr) 320px;
+            gap: 16px 20px;
+            align-items: start;
         }
 
-        .worker-finding-card {
-            background: var(--surface-raised, #171717);
-            border: 1px solid var(--border-color, #262626);
-            border-radius: 6px;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            position: relative;
-        }
+        .proof-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
-        .worker-finding-card.is-violation {
-            border-color: rgba(163, 28, 27, 0.5);
-            background: linear-gradient(180deg, rgba(163, 28, 27, 0.08) 0%, rgba(23, 23, 23, 1) 100%);
-        }
-
-        .worker-card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .worker-title-box {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .worker-name {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--text-primary, #ffffff);
-        }
-
-        .worker-conf {
-            font-size: 11px;
-            color: var(--text-secondary, #a3a3a3);
-            background: #262626;
-            padding: 2px 6px;
-            border-radius: 3px;
-        }
-
-        .worker-finding-row {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .finding-sublabel {
-            font-size: 11px;
-            text-transform: uppercase;
-            font-weight: 600;
-            color: var(--text-secondary, #a3a3a3);
-            letter-spacing: 0.5px;
-        }
-
-        .chips-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-
-        /* Image Display */
         .proof-image-stage {
-            background: #050505;
-            border: 1px solid var(--border-color, #262626);
-            border-radius: 6px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            min-height: 480px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            min-height: 360px;
+            display: grid;
+            place-items: center;
+            background: var(--monitor);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
         }
 
         .proof-image-stage img {
+            display: block;
             max-width: 100%;
-            max-height: 80vh;
-            border-radius: 4px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.8);
-            border: 1px solid #333333;
+            max-height: 75vh;
             object-fit: contain;
+            outline: 1px solid oklch(0 0 0 / 0.1);
+            outline-offset: -1px;
         }
 
         .proof-empty-msg {
-            color: var(--text-disabled, #737373);
-            font-size: 13px;
-            text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            padding: 24px;
+            color: #b5bcc0;
+            text-align: center;
         }
 
-        .proof-action-row {
+        .proof-empty-msg svg.lucide { width: 28px; height: 28px; stroke-width: 1.5; }
+
+        .multicam-strip {
             display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding-top: 8px;
+        }
+
+        .multicam-thumb {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: 4px;
+            background: var(--panel);
+            border: 1px solid var(--rule);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            color: var(--ink-2);
+            text-align: center;
+        }
+
+        .multicam-thumb img {
+            width: 128px;
+            height: 72px;
+            object-fit: cover;
+            border-radius: 2px;
+            outline: 1px solid oklch(0 0 0 / 0.1);
+            outline-offset: -1px;
+        }
+
+        /* Worker findings */
+        .worker-findings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 8px;
+        }
+
+        .worker-finding-card {
+            display: flex;
+            flex-direction: column;
             gap: 10px;
+            padding: 12px 14px;
+            background: #fff;
+            border: 1px solid var(--rule);
+            border-left: 4px solid var(--safe-green);
+            border-radius: var(--radius-sm);
+        }
+
+        .worker-finding-card.is-violation { border-left-color: var(--signal-red); }
+
+        .worker-card-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .worker-name { font-weight: 600; }
+        .worker-name { display: block; }
+        .worker-conf { display: block; font-size: 13px; color: var(--ink-3); }
+
+        .worker-finding-row { display: flex; flex-direction: column; gap: 4px; }
+        .finding-sublabel { font-size: 13px; color: var(--ink-2); }
+        .chips-list { display: flex; flex-wrap: wrap; gap: 4px; }
+        .chips-none { font-size: 13px; color: var(--ink-3); }
+
+        /* PPE rules checked */
+        .rules-list { display: flex; flex-direction: column; }
+
+        .rule-row {
+            display: grid;
+            grid-template-columns: 32px 1fr auto;
             align-items: center;
+            gap: 10px;
+            padding: 8px 8px 8px 6px;
+            border-top: 1px solid var(--rule-soft);
+            font-size: 14px;
+        }
+
+        .rule-row:first-child { border-top: none; }
+
+        .rule-roundel {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            background: var(--surface-raised);
+            color: var(--ink-3);
+        }
+
+        .rule-row.active .rule-roundel { background: var(--mandatory-blue); color: #fff; }
+        .rule-row .rule-state { font-size: 13px; color: var(--ink-3); }
+        .rule-row.active .rule-state { color: var(--mandatory-blue); font-weight: 500; }
+        .rule-row:not(.active) .rule-name { color: var(--ink-2); }
+
+        .proof-aside { position: sticky; top: 76px; }
+
+        @media (max-width: 1000px) {
+            .proof-layout { grid-template-columns: minmax(0, 1fr); }
+            .proof-aside { position: static; }
+        }
+
+        @media (max-width: 640px) {
+            .proof-topbar { padding: 10px 16px; flex-wrap: wrap; }
+            .proof-container { padding: 16px 16px 40px; }
+            .proof-action-row { width: 100%; }
+            .proof-action-row > * { flex: 1; }
         }
 
         @media print {
-            .proof-navbar, .proof-action-row {
-                display: none !important;
-            }
-            body {
-                background: #fff;
-                color: #000;
-            }
-            .proof-header-card, .proof-meta-card, .proof-section-card, .worker-finding-card, .proof-image-stage {
-                border-color: #ccc;
-                background: #fff;
-                color: #000;
-            }
-            .worker-finding-card.is-violation {
-                background: #fff;
-                border-color: #e00;
-            }
+            .proof-topbar { display: none !important; }
+            body.proof-page { background: #fff; }
+            .proof-container { padding: 0; }
+            .proof-layout { grid-template-columns: minmax(0, 1fr); }
+            .surface, .site-status { box-shadow: none; border: 1px solid #ccc; }
+            .proof-image-stage { background: #fff; }
         }
     </style>
 </head>
-<body>
+<body class="proof-page">
 
-    <!-- Top Navigation -->
-    <header class="proof-navbar">
-        <div class="proof-brand">
-            <span class="proof-brand-badge">PPE-AI</span>
-            <span>Enterprise Compliance Audit Proof</span>
+    <header class="proof-topbar">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true"><i data-lucide="hard-hat"></i></span>
+            <span class="brand-name">SafeSight AI</span>
         </div>
         <div class="proof-action-row">
-            <button class="btn-outlined" onclick="window.print()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="printer" style="width:14px; height:14px;"></i>
-                Print / Save PDF
-            </button>
-            <button class="btn-outlined" id="btn-download-img" onclick="downloadProofImage()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="download" style="width:14px; height:14px;"></i>
-                Download Proof JPEG
-            </button>
-            <a href="/" class="btn-primary" style="font-size:12px; padding:6px 16px; text-decoration:none; display:flex; align-items:center; gap:6px;">
-                <i data-lucide="arrow-left" style="width:14px; height:14px;"></i>
-                Back to Dashboard
-            </a>
+            <a href="/" class="btn-ghost btn-sm"><i data-lucide="arrow-left"></i> Back to dashboard</a>
+            <button class="btn-outlined btn-sm" id="btn-download-img" onclick="downloadProofImage()"><i data-lucide="download"></i> Download photo</button>
+            <button class="btn-primary btn-sm" onclick="window.print()"><i data-lucide="printer"></i> Print or save PDF</button>
         </div>
     </header>
 
-    <!-- Main Content Container -->
     <main class="proof-container">
 
-        <!-- Incident Header Details Card -->
-        <section class="proof-header-card">
-            <div>
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <span id="proof-id" style="font-family:monospace; font-size:20px; font-weight:800; color:var(--text-primary);">INC-000000</span>
-                    <span id="proof-status-badge" class="status-badge-chip violation">VIOLATION</span>
-                </div>
-                <p id="proof-verdict" style="margin:8px 0 0 0; font-size:13px; color:var(--text-secondary); max-width:700px; line-height:1.4;">
-                    Analyzing visual proof...
-                </p>
+        <header>
+            <div class="proof-title-row">
+                <h1 class="page-title" id="proof-id">Loading incident</h1>
+                <span id="proof-status-badge" class="status-badge-chip hidden"></span>
             </div>
-            <div style="text-align:right;">
-                <div id="proof-timestamp" style="font-size:13px; font-weight:600; color:var(--text-primary);">--</div>
-                <div id="proof-source" style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Source: Photo Inspection</div>
+            <dl class="proof-facts">
+                <div><dt>Camera</dt><dd id="meta-location">…</dd></div>
+                <div><dt>Logged</dt><dd id="proof-timestamp">…</dd></div>
+            </dl>
+            <p class="page-sub" id="proof-verdict" style="margin-top:8px;">Loading the incident record.</p>
+        </header>
+
+        <section class="kpi-row site-status" aria-label="Incident summary">
+            <span class="status-sign" aria-hidden="true"><span class="sign-ok">✓</span><span class="sign-bad">!</span></span>
+            <div class="kpi-card">
+                <span class="kpi-numeral" id="meta-total">0</span>
+                <span class="kpi-label">workers in photo</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-numeral" id="meta-compliant">0</span>
+                <span class="kpi-label">wearing required PPE</span>
+            </div>
+            <div class="kpi-card" id="meta-violations-card">
+                <span class="kpi-numeral" id="meta-violations">0</span>
+                <span class="kpi-label">missing PPE</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-numeral" id="meta-rate">100%</span>
+                <span class="kpi-label">compliance</span>
             </div>
         </section>
 
-        <!-- KPI Breakdown Meta Grid -->
-        <section class="proof-meta-grid">
-            <div class="proof-meta-card">
-                <span class="proof-meta-label">Location / Room</span>
-                <span class="proof-meta-val" id="meta-location">Photo Inspection</span>
-            </div>
-            <div class="proof-meta-card">
-                <span class="proof-meta-label">Total Workers</span>
-                <span class="proof-meta-val" id="meta-total">0</span>
-            </div>
-            <div class="proof-meta-card">
-                <span class="proof-meta-label">Compliant Workers</span>
-                <span class="proof-meta-val" id="meta-compliant" style="color:var(--compliant-text, #22c55e);">0</span>
-            </div>
-            <div class="proof-meta-card">
-                <span class="proof-meta-label">Violations Flagged</span>
-                <span class="proof-meta-val" id="meta-violations" style="color:var(--accent, #A31C1B);">0</span>
-            </div>
-            <div class="proof-meta-card">
-                <span class="proof-meta-label">Compliance Rate</span>
-                <span class="proof-meta-val" id="meta-rate">100%</span>
-            </div>
-        </section>
+        <div class="proof-layout">
+            <div class="proof-main">
+                <section class="surface card" aria-labelledby="evidence-title">
+                    <div class="card-head">
+                        <h2 class="section-label" id="evidence-title">Evidence photo</h2>
+                        <span class="card-hint">Boxes show each detected worker</span>
+                    </div>
+                    <div class="proof-image-stage">
+                        <div id="proof-empty-box" class="proof-empty-msg hidden">
+                            <i data-lucide="image-off"></i>
+                            <span>No photo was saved with this incident.</span>
+                        </div>
+                        <img id="proof-main-image" src="" alt="Evidence photo for this incident" class="hidden">
+                    </div>
+                </section>
 
-        <!-- 1. Enforced Audit Rules Section -->
-        <section class="proof-section-card">
-            <div class="proof-section-title">
-                <i data-lucide="shield-alert" style="width:16px; height:16px; color:var(--accent);"></i>
-                <span>Audit Criteria & Enforced Rules</span>
+                <section class="surface card" aria-labelledby="workers-title">
+                    <div class="card-head">
+                        <h2 class="section-label" id="workers-title">Workers</h2>
+                    </div>
+                    <div class="worker-findings-grid" id="workers-container"></div>
+                </section>
             </div>
-            <div class="rules-badge-grid" id="rules-container">
-                <!-- Dynamically populated badges -->
-            </div>
-        </section>
 
-        <!-- 2. Worker-by-Worker Audit Findings Section -->
-        <section class="proof-section-card">
-            <div class="proof-section-title">
-                <i data-lucide="users" style="width:16px; height:16px; color:var(--accent);"></i>
-                <span>Worker-by-Worker Violation & Compliance Findings</span>
-            </div>
-            <div class="worker-findings-grid" id="workers-container">
-                <!-- Dynamically populated worker cards -->
-            </div>
-        </section>
-
-        <!-- 3. High-Resolution Visual Evidence Display -->
-        <section class="proof-section-card" style="padding: 16px 24px;">
-            <div class="proof-section-title" style="justify-content:space-between;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                    <i data-lucide="camera" style="width:16px; height:16px; color:var(--accent);"></i>
-                    <span>Visual Proof & Violation Overlay Evidence</span>
-                </div>
-                <span style="font-size:11px; color:var(--text-secondary); text-transform:none; font-weight:normal;">
-                    High-resolution frame snapshot with bounding box overlays & confidence scores
-                </span>
-            </div>
-            <div class="proof-image-stage" style="margin-top:12px;">
-                <div id="proof-empty-box" class="proof-empty-msg hidden">
-                    <i data-lucide="image-off" style="width:48px; height:48px;"></i>
-                    <span>No visual snapshot was attached to this audit record.</span>
-                </div>
-                <img id="proof-main-image" src="" alt="Violation Visual Proof" class="hidden">
-            </div>
-        </section>
+            <aside class="proof-aside">
+                <section class="surface card" aria-labelledby="rules-title">
+                    <div class="card-head">
+                        <h2 class="section-label" id="rules-title">PPE checked</h2>
+                    </div>
+                    <div class="rules-list" id="rules-container"></div>
+                </section>
+            </aside>
+        </div>
 
     </main>
 
@@ -401,13 +296,13 @@
         let currentIncidentId = null;
 
         const RULE_DEFINITIONS = [
-            { key: "helmet", label: "No Helmet", icon: "hard-hat" },
-            { key: "vest", label: "No Safety Vest", icon: "shield" },
-            { key: "helmet_arm", label: "Helmet Under Arm", icon: "user-x" },
-            { key: "gloves", label: "No Gloves", icon: "hand" },
-            { key: "boots", label: "No Safety Boots", icon: "footprints" },
-            { key: "goggles", label: "No Eye Protection", icon: "glasses" },
-            { key: "loose", label: "Other / Loose PPE", icon: "alert-triangle" }
+            { key: "helmet", label: "Hard hat", icon: "hard-hat" },
+            { key: "vest", label: "Hi-vis vest", icon: "shirt" },
+            { key: "helmet_arm", label: "Hard hat carried, not worn", icon: "user-x" },
+            { key: "gloves", label: "Gloves", icon: "hand" },
+            { key: "boots", label: "Safety boots", icon: "footprints" },
+            { key: "goggles", label: "Eye protection", icon: "glasses" },
+            { key: "loose", label: "Loose or other PPE", icon: "alert-triangle" }
         ];
 
         document.addEventListener("DOMContentLoaded", async () => {
@@ -460,8 +355,8 @@
             }
 
             if (!incident) {
-                document.getElementById("proof-id").innerText = "Incident Not Found";
-                document.getElementById("proof-verdict").innerText = "No incident records found. Trigger an inspection or live breach first.";
+                document.getElementById("proof-id").innerText = "Incident not found";
+                document.getElementById("proof-verdict").innerText = "There is no record for this incident. Log one from the camera, photo, or video screens first.";
                 document.getElementById("proof-empty-box").classList.remove("hidden");
                 if (window.lucide) window.lucide.createIcons();
                 return;
@@ -471,19 +366,19 @@
 
             // Populate header
             document.getElementById("proof-id").innerText = incident.id;
-            document.title = `${incident.id} - Violation Proof | PPE Compliance AI`;
+            document.title = `${incident.id} | SafeSight AI`;
 
             const isViol = incident.violations > 0;
             const badge = document.getElementById("proof-status-badge");
             badge.className = `status-badge-chip ${isViol ? "violation" : "compliant"}`;
-            badge.innerText = isViol ? `${incident.violations} VIOLATION${incident.violations > 1 ? 'S' : ''}` : "COMPLIANT";
+            badge.innerText = isViol ? "Missing PPE" : "Wearing PPE";
+            document.getElementById("meta-violations-card").classList.toggle("has-violations", isViol);
 
-            document.getElementById("proof-verdict").innerText = incident.verdict || "Full PPE Compliance Verified";
+            document.getElementById("proof-verdict").innerText = incident.verdict || "Everyone was wearing the required PPE.";
             document.getElementById("proof-timestamp").innerText = incident.timestamp || new Date().toLocaleString();
-            document.getElementById("proof-source").innerText = `Source: ${incident.camera || "CCTV / Photo"}`;
 
             // Populate KPIs
-            document.getElementById("meta-location").innerText = incident.camera || "Inspection View";
+            document.getElementById("meta-location").innerText = incident.camera || "Inspection";
             document.getElementById("meta-total").innerText = incident.totalWorkers || 0;
             document.getElementById("meta-compliant").innerText = incident.compliant || 0;
             document.getElementById("meta-violations").innerText = incident.violations || 0;
@@ -538,21 +433,17 @@
             if (!strip) {
                 strip = document.createElement("div");
                 strip.id = "multicam-thumb-strip";
-                strip.style.display = "flex";
-                strip.style.gap = "10px";
-                strip.style.marginTop = "14px";
-                strip.style.justifyContent = "center";
-                strip.style.flexWrap = "wrap";
+                strip.className = "multicam-strip";
                 stage.parentNode.appendChild(strip);
             }
 
             strip.innerHTML = Object.entries(views).map(([camKey, cData]) => {
                 const imgUrl = cData.url || cData.image;
                 return `
-                    <div style="border:1px solid #333; border-radius:4px; padding:4px; background:#121212; cursor:pointer; text-align:center;" onclick="switchProofView('${imgUrl}')">
-                        <img src="${imgUrl}" style="width:120px; height:68px; object-fit:cover; border-radius:2px;" alt="${cData.label}">
-                        <div style="font-size:10px; color:#aaa; margin-top:2px;">${cData.label || camKey}</div>
-                    </div>
+                    <button type="button" class="multicam-thumb" onclick="switchProofView('${imgUrl}')">
+                        <img src="${imgUrl}" alt="${cData.label || camKey}">
+                        <span>${cData.label || camKey}</span>
+                    </button>
                 `;
             }).join("");
         }
@@ -585,15 +476,11 @@
 
             container.innerHTML = RULE_DEFINITIONS.map(rule => {
                 const isEnforced = !!activeRules[rule.key];
-                const badgeClass = isEnforced ? "rule-badge active" : "rule-badge inactive";
-                const icon = isEnforced ? "check-circle-2" : "minus-circle";
-                const statusTag = isEnforced ? "Enforced" : "Not Active";
-
                 return `
-                    <div class="${badgeClass}">
-                        <i data-lucide="${icon}" style="width:14px; height:14px;"></i>
-                        <span>${rule.label}</span>
-                        <span style="font-size:10px; opacity:0.8; margin-left:4px;">(${statusTag})</span>
+                    <div class="rule-row ${isEnforced ? "active" : ""}">
+                        <span class="rule-roundel"><i data-lucide="${rule.icon}"></i></span>
+                        <span class="rule-name">${rule.label}</span>
+                        <span class="rule-state">${isEnforced ? "Required" : "Not checked"}</span>
                     </div>
                 `;
             }).join("");
@@ -611,11 +498,7 @@
             }
 
             if (!workers || workers.length === 0) {
-                container.innerHTML = `
-                    <div style="padding:24px; text-align:center; color:var(--text-disabled); grid-column:1/-1;">
-                        No individual worker records available for this inspection.
-                    </div>
-                `;
+                container.innerHTML = `<div class="list-empty" style="grid-column:1/-1;">No per-worker details were saved with this incident.</div>`;
                 return;
             }
 
@@ -623,74 +506,52 @@
                 const isViolation = !w.is_compliant;
                 const cardClass = isViolation ? "worker-finding-card is-violation" : "worker-finding-card";
                 const statusBadge = isViolation
-                    ? `<span class="status-badge-chip violation">VIOLATION</span>`
-                    : `<span class="status-badge-chip compliant">COMPLIANT</span>`;
+                    ? `<span class="status-badge-chip violation">Missing PPE</span>`
+                    : `<span class="status-badge-chip compliant">Wearing PPE</span>`;
 
-                const conf = w.confidence ? `${Math.round(w.confidence * 100)}%` : "--";
+                const conf = w.confidence ? `${Math.round(w.confidence * 100)}%` : null;
 
                 // Missing breaches
                 let breachesHtml = "";
                 if (isViolation && w.missing_chips && w.missing_chips.length > 0) {
-                    breachesHtml = w.missing_chips.map(chip => `
-                        <span class="violation-pill-chip" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; font-size:12px;">
-                            <i data-lucide="x" style="width:12px; height:12px;"></i>
-                            ${chip}
-                        </span>
-                    `).join("");
+                    breachesHtml = w.missing_chips.map(chip => `<span class="violation-pill-chip">${chip}</span>`).join("");
                 } else if (!isViolation) {
-                    breachesHtml = `
-                        <span class="compliant-pill-chip" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; color:var(--compliant-text, #22c55e); border-color:rgba(34,197,94,0.3);">
-                            <i data-lucide="check" style="width:12px; height:12px;"></i>
-                            No Safety Breaches - 100% Compliant
-                        </span>
-                    `;
+                    breachesHtml = `<span class="chips-none">Nothing missing</span>`;
                 } else {
-                    breachesHtml = `<span class="violation-pill-chip">Safety Breach Flagged</span>`;
+                    breachesHtml = `<span class="violation-pill-chip">Missing PPE</span>`;
                 }
 
                 // Verified compliant gear
                 let gearHtml = "";
                 const detected = w.detected_ppe || {};
                 const gearList = [];
-                if (detected.helmet) gearList.push("Safety Helmet (Head)");
-                if (detected.vest) gearList.push("High-Vis Safety Vest (Torso)");
-                if (detected.gloves) gearList.push("Protective Gloves (Hands)");
-                if (detected.boots) gearList.push("Safety Boots (Feet)");
-                if (detected.goggles) gearList.push("Eye Protection / Goggles");
+                if (detected.helmet) gearList.push("Hard hat");
+                if (detected.vest) gearList.push("Hi-vis vest");
+                if (detected.gloves) gearList.push("Gloves");
+                if (detected.boots) gearList.push("Safety boots");
+                if (detected.goggles) gearList.push("Eye protection");
 
                 if (gearList.length > 0) {
-                    gearHtml = gearList.map(g => `
-                        <span class="compliant-pill-chip" style="display:inline-flex; align-items:center; gap:4px; padding:2px 6px;">
-                            <i data-lucide="shield-check" style="width:11px; height:11px; color:#22c55e;"></i>
-                            ${g}
-                        </span>
-                    `).join("");
+                    gearHtml = gearList.map(g => `<span class="compliant-pill-chip">${g}</span>`).join("");
                 } else {
-                    gearHtml = `<span style="font-size:11px; color:var(--text-disabled, #737373); font-style:italic;">No verified PPE items detected</span>`;
+                    gearHtml = `<span class="chips-none">No PPE detected</span>`;
                 }
+
+                const name = w.worker_id.toString().startsWith("Worker") ? w.worker_id : `Worker ${w.worker_id}`;
 
                 return `
                     <div class="${cardClass}">
                         <div class="worker-card-header">
-                            <div class="worker-title-box">
-                                <span class="worker-name">${w.worker_id.toString().startsWith("Worker") ? w.worker_id : 'Worker #' + w.worker_id}</span>
-                                <span class="worker-conf">Confidence ${conf}</span>
-                            </div>
+                            <span><span class="worker-name">${name}</span>${conf ? `<span class="worker-conf">${conf} confidence</span>` : ""}</span>
                             ${statusBadge}
                         </div>
-
                         <div class="worker-finding-row">
-                            <span class="finding-sublabel">Safety Violation Findings:</span>
-                            <div class="chips-list">
-                                ${breachesHtml}
-                            </div>
+                            <span class="finding-sublabel">Missing</span>
+                            <div class="chips-list">${breachesHtml}</div>
                         </div>
-
-                        <div class="worker-finding-row" style="margin-top:2px;">
-                            <span class="finding-sublabel">Verified Safety Equipment Worn:</span>
-                            <div class="chips-list">
-                                ${gearHtml}
-                            </div>
+                        <div class="worker-finding-row">
+                            <span class="finding-sublabel">Wearing</span>
+                            <div class="chips-list">${gearHtml}</div>
                         </div>
                     </div>
                 `;

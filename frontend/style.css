@@ -1144,8 +1144,20 @@ svg.lucide { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 1.75; }
 .audit-muted { color: var(--ink-2); white-space: nowrap; }
 .audit-strong { font-weight: 600; }
 .audit-viol { color: var(--signal-red); font-weight: 600; }
-.audit-result { display: flex; align-items: center; gap: 8px; }
-.audit-actions { display: flex; gap: 6px; }
+.audit-result { display: flex; align-items: center; gap: 8px; min-width: 220px; }
+
+.audit-verdict {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.audit-actions { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+.audit-row { cursor: default; user-select: none; }
+.btn-danger { color: var(--signal-red); }
 
 .audit-snapshot-thumb {
   position: relative;
@@ -1323,6 +1335,7 @@ svg.lucide { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 1.75; }
   .nav-tab-btn:not(.active):hover { background: #eef0ee; color: var(--graphite); }
   .btn-primary:hover { background: #2c3338; border-color: #2c3338; }
   .btn-outlined:hover, .icon-btn:hover { border-color: var(--graphite); }
+  .btn-danger:hover { border-color: var(--signal-red); background: var(--red-tint); }
   .btn-ghost:hover { background: rgb(21 25 28 / 0.06); }
   .toggle-chip:not(.active):hover { color: var(--graphite); }
   .cctv-tile:not(.has-violation):not(.has-mcmt-overlap):hover { border-color: #4a535a; }
